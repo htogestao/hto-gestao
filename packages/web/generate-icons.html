@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><title>Gerar Ícones PWA</title></head>
+<body>
+<h2>Clique nos botões para baixar os ícones</h2>
+<button onclick="generate(192)">Baixar icon-192.png</button>
+<button onclick="generate(512)">Baixar icon-512.png</button>
+<canvas id="c" style="display:none"></canvas>
+<script>
+function generate(size) {
+  const canvas = document.getElementById('c')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+
+  // Fundo verde escuro
+  ctx.fillStyle = '#14532d'
+  ctx.fillRect(0, 0, size, size)
+
+  // Círculo verde
+  ctx.fillStyle = '#16a34a'
+  ctx.beginPath()
+  ctx.arc(size/2, size/2, size*0.42, 0, Math.PI*2)
+  ctx.fill()
+
+  // Letra H branca
+  ctx.fillStyle = '#ffffff'
+  ctx.font = `bold ${size*0.45}px Arial`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('H', size/2, size/2)
+
+  // Download
+  const a = document.createElement('a')
+  a.download = `icon-${size}.png`
+  a.href = canvas.toDataURL('image/png')
+  a.click()
+}
+</script>
+</body>
+</html>

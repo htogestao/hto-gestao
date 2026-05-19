@@ -1,0 +1,18 @@
+{
+  "name": "agro-system",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "build:web": "pnpm --filter web build",
+    "build:shared": "pnpm --filter shared build",
+    "type-check": "pnpm --filter shared type-check && pnpm --filter web type-check"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
