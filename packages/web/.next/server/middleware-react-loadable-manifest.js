@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"app\\\\(dashboard)\\\\client-layout.tsx -> @/components/sidebar\":{\"id\":\"app\\\\(dashboard)\\\\client-layout.tsx -> @/components/sidebar\",\"files\":[\"static/chunks/_app-pages-browser_src_components_sidebar_tsx.js\"]}}"
