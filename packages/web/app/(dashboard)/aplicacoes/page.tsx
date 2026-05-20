@@ -26,5 +26,5 @@ export default async function AplicacoesPage() {
     .order('created_at', { ascending: false })
     .limit(200)
 
-  return <AplicacoesClient aplicacoes={aplicacoes ?? []} role={profile?.role ?? 'viewer'} />
+  return <AplicacoesClient aplicacoes={(aplicacoes ?? []) as any} role={profile?.role ?? 'viewer'} />
 }

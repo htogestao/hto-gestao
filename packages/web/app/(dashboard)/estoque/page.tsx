@@ -23,7 +23,7 @@ export default async function EstoquePage() {
   return (
     <EstoqueTable
       estoque={estoque ?? []}
-      lotes={lotes ?? []}
+      lotes={(lotes ?? []) as any}
       role={profile?.role ?? 'viewer'}
     />
   )
