@@ -18,5 +18,5 @@ export default async function ComprasPage() {
   const { data: defensivos } = await supabase
     .from('defensivos').select('id, nome_comercial, unidade').order('nome_comercial')
 
-  return <ComprasClient lotes={lotes ?? []} defensivos={defensivos ?? []} role={profile?.role ?? 'viewer'} />
+  return <ComprasClient lotes={(lotes ?? []) as any} defensivos={(defensivos ?? []) as any} role={profile?.role ?? 'viewer'} />
 }
