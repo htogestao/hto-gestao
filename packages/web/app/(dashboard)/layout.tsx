@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .single()
 
-  if (!profile || !profile.ativo || profile.role === 'field') {
+  if (!profile || !profile.ativo) {
     redirect('/login?erro=acesso_negado')
   }
 
