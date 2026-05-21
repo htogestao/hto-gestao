@@ -36,9 +36,10 @@ const NAV_ITEMS: NavItem[] = [
 interface SidebarProps {
   role: UserRole
   userName: string
+  onClose?: () => void
 }
 
-export function Sidebar({ role, userName }: SidebarProps) {
+export function Sidebar({ role, userName, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
@@ -87,6 +88,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors mb-0.5',
                 active
