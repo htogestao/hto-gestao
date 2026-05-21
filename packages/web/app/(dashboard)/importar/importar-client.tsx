@@ -157,7 +157,20 @@ export function ImportarClient() {
       const areaHa      = Number(String(row['AREA_HA']).replace(',', '.'))
       const municipio   = row['MUNICIPIO'] ? String(row['MUNICIPIO']).trim() : null
       const uf          = row['UF'] ? String(row['UF']).trim().toUpperCase() : null
-      const polo        = row['UNIDADE'] ? String(row['UNIDADE']).trim() : null
+
+      // Mapeia USL → ATVOS-USL, mantém COCAL como está
+      const unidadeRaw = row['UNIDADE'] ? String(row['UNIDADE']).trim() : null
+      const unidade    = unidadeRaw === 'USL' ? 'ATVOS-USL' : unidadeRaw
+
+      // Extrai número do corte do texto (ex: "5o. Corte" → 5, "3° Corte" → 3, "Descanso" → null)
+      const numCortesRaw = row['NUM_CORTES'] ? String(row['NUM_CORTES']).trim() : null
+      let numeroCorte: number | null = null
+      if (numCortesRaw) {
+        const match = numCortesRaw.match(/(\d+)[°º o]/)
+        if (match) numeroCorte = parseInt(match[1])
+      }
+
+      const status = row['STATUS'] ? String(row['STATUS']).toLowerCase().trim() : null
 
       // Busca ou cria fazenda
       let { data: fazenda } = await supabase
@@ -165,10 +178,13 @@ export function ImportarClient() {
 
       if (!fazenda) {
         const { data: nova } = await supabase.from('fazendas').insert({
-          nome: nomeFazenda, municipio, uf, polo
+          nome: nomeFazenda, municipio, uf, unidade
         }).select('id').single()
         fazenda = nova
         fazendasIns++
+      } else {
+        // Atualiza dados da fazenda se já existir
+        await supabase.from('fazendas').update({ municipio, uf, unidade }).eq('id', fazenda.id)
       }
 
       if (!fazenda) continue
@@ -177,13 +193,10 @@ export function ImportarClient() {
       const { data: talhaoExist } = await supabase
         .from('talhoes').select('id').eq('fazenda_id', fazenda.id).eq('nome', nomeTalhao).maybeSingle()
 
-      const numCortes = row['NUM_CORTES'] ? Number(row['NUM_CORTES']) : null
-      const status    = row['STATUS'] ? String(row['STATUS']).toLowerCase().trim() : null
-
       if (talhaoExist) {
         await supabase.from('talhoes').update({
           area_ha: areaHa,
-          ...(numCortes !== null && { num_cortes: numCortes }),
+          ...(numeroCorte !== null && { numero_corte: numeroCorte }),
           ...(status && { status_area: status }),
         }).eq('id', talhaoExist.id)
         talhoesAtual++
@@ -192,7 +205,7 @@ export function ImportarClient() {
           fazenda_id: fazenda.id,
           nome: nomeTalhao,
           area_ha: areaHa,
-          ...(numCortes !== null && { num_cortes: numCortes }),
+          ...(numeroCorte !== null && { numero_corte: numeroCorte }),
           ...(status && { status_area: status }),
         })
         talhoesIns++
@@ -343,7 +356,7 @@ export function ImportarClient() {
     const modelos: Record<TabImport, { colunas: string[]; exemplo: (string|number)[] }> = {
       areas: {
         colunas: ['FAZENDA', 'TALHAO', 'AREA_HA', 'NUM_CORTES', 'STATUS', 'MUNICIPIO', 'UF', 'UNIDADE'],
-        exemplo: ['Fazenda Santa Maria', 'Talhão 01', 25.5, 3, 'soca', 'Dourados', 'MS', 'Polo Sul'],
+        exemplo: ['LAGOA DOURADA II', 55, 1.41, '5o. Corte', '', 'Rio Brilhante', 'MS', 'COCAL'],
       },
       inventario: {
         colunas: ['CHAVESIG','SAFRA','UNIDADE','EMPRESA','EMPDESC','MOD','NUM','FAZENDA','SETOR',
