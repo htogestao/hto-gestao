@@ -75,7 +75,7 @@ export function ExportarClient({ role }: { role: string }) {
 
       } else if (tipo === 'fazendas_talhoes') {
         const { data: fazendas } = await supabase.from('fazendas')
-          .select('nome,municipio,uf,area_total_ha,polo,fornecedor_principal,vencimento_contrato,unidade_industrial')
+          .select('nome,municipio,uf,area_total_ha,usina,fornecedor_principal,vencimento_contrato,unidade_industrial')
           .order('nome')
         const { data: talhoes } = await supabase.from('talhoes')
           .select('nome,area_ha,cultura_atual,variedade,numero_corte,status_colheita,sistema_colheita,data_plantio,tch_estimado,toneladas_estimadas,fazenda:fazendas(nome)')
@@ -87,7 +87,7 @@ export function ExportarClient({ role }: { role: string }) {
             'Município':       f.municipio ?? '',
             'UF':              f.uf ?? '',
             'Área Total (ha)': f.area_total_ha ?? '',
-            'Polo':            f.polo ?? '',
+            'Usina':           f.usina ?? '',
             'Fornecedor':      f.fornecedor_principal ?? '',
             'Venc. Contrato':  f.vencimento_contrato ?? '',
             'Unid. Industrial':f.unidade_industrial ?? '',

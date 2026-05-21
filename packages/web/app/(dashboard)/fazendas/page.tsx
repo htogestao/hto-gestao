@@ -12,7 +12,7 @@ export default async function FazendasPage() {
   const { data: fazendas } = await supabase
     .from('fazendas')
     .select(`
-      id, nome, municipio, uf, area_total_ha, polo,
+      id, nome, municipio, uf, area_total_ha, usina,
       fornecedor_principal, vencimento_contrato, unidade_industrial,
       codigo_externo, observacoes, created_at,
       talhoes(id, nome, area_ha, variedade, status_colheita, numero_corte, cultura_atual)
