@@ -16,7 +16,7 @@ export default async function TalhoesPage() {
       .order('nome'),
     supabase
       .from('fazendas')
-      .select('id, nome, municipio, uf, polo')
+      .select('id, nome, municipio, uf, usina')
       .order('nome'),
   ])
 

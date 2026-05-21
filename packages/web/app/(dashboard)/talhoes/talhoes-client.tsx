@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Search, Layers, Pencil, Trash2, X } from 'lucide-react'
 import type { Talhao } from '@agro/shared'
 
-interface Fazenda { id: string; nome: string; municipio: string | null; uf: string | null; polo: string | null }
+interface Fazenda { id: string; nome: string; municipio: string | null; uf: string | null; usina: string | null }
 
 const STATUS_CONFIG: Record<string, { label: string; variant: string }> = {
   a_colher:  { label: 'A colher',  variant: 'bg-green-100 text-green-800' },
@@ -183,7 +183,7 @@ export default function TalhoesClient({ talhoes: initialTalhoes, fazendas, isAdm
                       <td className="px-4 py-3 font-medium text-gray-900">{t.nome}</td>
                       <td className="px-4 py-3 text-gray-700">
                         {faz?.nome ?? '—'}
-                        {faz?.polo && <span className="ml-1 text-xs text-gray-400">P{faz.polo}</span>}
+                        {faz?.usina && <span className="ml-1 text-xs text-gray-400">P{faz.usina}</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {t.cultura_atual ?? '—'}

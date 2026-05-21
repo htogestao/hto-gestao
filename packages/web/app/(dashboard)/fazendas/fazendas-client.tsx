@@ -16,7 +16,7 @@ interface Talhao {
 
 interface Fazenda {
   id: string; nome: string; municipio: string | null; uf: string | null
-  area_total_ha: number | null; polo: string | null; fornecedor_principal: string | null
+  area_total_ha: number | null; usina: string | null; fornecedor_principal: string | null
   vencimento_contrato: string | null; unidade_industrial: string | null
   codigo_externo: string | null; observacoes: string | null; created_at: string
   talhoes: Talhao[]
@@ -37,7 +37,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const EMPTY: Fazenda = {
   id: '', nome: '', municipio: null, uf: null, area_total_ha: null,
-  polo: null, fornecedor_principal: null, vencimento_contrato: null,
+  usina: null, fornecedor_principal: null, vencimento_contrato: null,
   unidade_industrial: null, codigo_externo: null, observacoes: null,
   created_at: '', talhoes: [],
 }
@@ -97,7 +97,7 @@ export function FazendasClient({ fazendas: inicial, role }: { fazendas: Fazenda[
           <div className="p-5 space-y-3">
             {([
               ['nome','Nome *','text'],['municipio','Município','text'],['uf','UF','text'],
-              ['polo','Polo','text'],['fornecedor_principal','Fornecedor Principal','text'],
+              ['usina','Usina','text'],['fornecedor_principal','Fornecedor Principal','text'],
               ['unidade_industrial','Unidade Industrial','text'],['codigo_externo','Código Externo','text'],
               ['observacoes','Observações','text'],
             ] as [keyof Fazenda, string, string][]).map(([k, label]) => (
@@ -160,7 +160,7 @@ export function FazendasClient({ fazendas: inicial, role }: { fazendas: Fazenda[
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold">{f.nome}</p>
-                    {f.polo && <Badge variant="info">{f.polo}</Badge>}
+                    {f.usina && <Badge variant="info">{f.usina}</Badge>}
                     {f.unidade_industrial && <Badge variant="outline">{f.unidade_industrial}</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
