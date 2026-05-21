@@ -66,13 +66,19 @@ export function ImportarClient() {
   }
 
   function validateAreas(rows: PreviewRow[], erros: ValidationError[]) {
+    const statusValidos = ['colhida', 'reforma', 'planta', 'soca']
     const required = ['FAZENDA', 'TALHAO', 'AREA_HA']
     rows.forEach((row, i) => {
       required.forEach(campo => {
         if (!row[campo]) erros.push({ linha: i + 2, campo, mensagem: `Campo ${campo} obrigatório` })
       })
-      if (row['AREA_HA'] && isNaN(Number(row['AREA_HA'])))
+      if (row['AREA_HA'] && isNaN(Number(String(row['AREA_HA']).replace(',', '.'))))
         erros.push({ linha: i + 2, campo: 'AREA_HA', mensagem: 'Deve ser um número (ex: 10.5)' })
+      if (row['STATUS']) {
+        const s = String(row['STATUS']).toLowerCase().trim()
+        if (!statusValidos.includes(s))
+          erros.push({ linha: i + 2, campo: 'STATUS', mensagem: `Deve ser: colhida, reforma, planta ou soca` })
+      }
     })
   }
 
@@ -171,12 +177,23 @@ export function ImportarClient() {
       const { data: talhaoExist } = await supabase
         .from('talhoes').select('id').eq('fazenda_id', fazenda.id).eq('nome', nomeTalhao).maybeSingle()
 
+      const numCortes = row['NUM_CORTES'] ? Number(row['NUM_CORTES']) : null
+      const status    = row['STATUS'] ? String(row['STATUS']).toLowerCase().trim() : null
+
       if (talhaoExist) {
-        await supabase.from('talhoes').update({ area_ha: areaHa }).eq('id', talhaoExist.id)
+        await supabase.from('talhoes').update({
+          area_ha: areaHa,
+          ...(numCortes !== null && { num_cortes: numCortes }),
+          ...(status && { status_area: status }),
+        }).eq('id', talhaoExist.id)
         talhoesAtual++
       } else {
         await supabase.from('talhoes').insert({
-          fazenda_id: fazenda.id, nome: nomeTalhao, area_ha: areaHa
+          fazenda_id: fazenda.id,
+          nome: nomeTalhao,
+          area_ha: areaHa,
+          ...(numCortes !== null && { num_cortes: numCortes }),
+          ...(status && { status_area: status }),
         })
         talhoesIns++
       }
@@ -325,8 +342,8 @@ export function ImportarClient() {
   function baixarModelo(tipo: TabImport) {
     const modelos: Record<TabImport, { colunas: string[]; exemplo: (string|number)[] }> = {
       areas: {
-        colunas: ['FAZENDA', 'TALHAO', 'AREA_HA', 'MUNICIPIO', 'UF', 'POLO'],
-        exemplo: ['Fazenda Santa Maria', 'Talhão 01', 25.5, 'Dourados', 'MS', 'Polo Sul'],
+        colunas: ['FAZENDA', 'TALHAO', 'AREA_HA', 'NUM_CORTES', 'STATUS', 'MUNICIPIO', 'UF', 'POLO'],
+        exemplo: ['Fazenda Santa Maria', 'Talhão 01', 25.5, 3, 'soca', 'Dourados', 'MS', 'Polo Sul'],
       },
       inventario: {
         colunas: ['CHAVESIG','SAFRA','POLO','EMPRESA','EMPDESC','MOD','NUM','FAZENDA','SETOR',
