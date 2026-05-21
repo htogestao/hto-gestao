@@ -157,7 +157,7 @@ export function ImportarClient() {
       const areaHa      = Number(String(row['AREA_HA']).replace(',', '.'))
       const municipio   = row['MUNICIPIO'] ? String(row['MUNICIPIO']).trim() : null
       const uf          = row['UF'] ? String(row['UF']).trim().toUpperCase() : null
-      const polo        = row['USINA'] ? String(row['USINA']).trim() : null
+      const polo        = row['UNIDADE'] ? String(row['UNIDADE']).trim() : null
 
       // Busca ou cria fazenda
       let { data: fazenda } = await supabase
@@ -342,11 +342,11 @@ export function ImportarClient() {
   function baixarModelo(tipo: TabImport) {
     const modelos: Record<TabImport, { colunas: string[]; exemplo: (string|number)[] }> = {
       areas: {
-        colunas: ['FAZENDA', 'TALHAO', 'AREA_HA', 'NUM_CORTES', 'STATUS', 'MUNICIPIO', 'UF', 'USINA'],
+        colunas: ['FAZENDA', 'TALHAO', 'AREA_HA', 'NUM_CORTES', 'STATUS', 'MUNICIPIO', 'UF', 'UNIDADE'],
         exemplo: ['Fazenda Santa Maria', 'Talhão 01', 25.5, 3, 'soca', 'Dourados', 'MS', 'Polo Sul'],
       },
       inventario: {
-        colunas: ['CHAVESIG','SAFRA','USINA','EMPRESA','EMPDESC','MOD','NUM','FAZENDA','SETOR',
+        colunas: ['CHAVESIG','SAFRA','UNIDADE','EMPRESA','EMPDESC','MOD','NUM','FAZENDA','SETOR',
                   'TALHAO','BLOCO','BLOCO_COLH','BLOCO_PLAN','AREA_HA','AREA_DANO','VARIED',
                   'MAN_HIPOT','ESTAGIO','TIPO_PROP','DATA_PLANTIO','FRENTE','DEVOLUCAO','REFORMA',
                   'TP_REFORMA','SIST_PLANT','VINHACA_E','SISTEMA_COL','DIST_TERRA','DIST_ASFALTO',
