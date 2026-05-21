@@ -11,13 +11,13 @@ import {
   AlertTriangle, Download, RefreshCw, Eye
 } from 'lucide-react'
 
-type TabImport = 'inventario' | 'defensivos' | 'compras'
+type TabImport = 'areas' | 'inventario' | 'defensivos' | 'compras'
 
 interface PreviewRow { [key: string]: string | number | null }
 interface ValidationError { linha: number; campo: string; mensagem: string }
 
 export function ImportarClient() {
-  const [aba, setAba]                   = useState<TabImport>('inventario')
+  const [aba, setAba]                   = useState<TabImport>('areas')
   const [arquivo, setArquivo]           = useState<File | null>(null)
   const [preview, setPreview]           = useState<PreviewRow[]>([])
   const [colunas, setColunas]           = useState<string[]>([])
@@ -51,7 +51,9 @@ export function ImportarClient() {
     // Validação prévia conforme tipo
     const novosErros: ValidationError[] = []
 
-    if (aba === 'inventario') {
+    if (aba === 'areas') {
+      validateAreas(rows, novosErros)
+    } else if (aba === 'inventario') {
       validateInventario(rows, novosErros)
     } else if (aba === 'defensivos') {
       validateDefensivos(rows, novosErros)
@@ -61,6 +63,17 @@ export function ImportarClient() {
 
     setErros(novosErros)
     setFase('preview')
+  }
+
+  function validateAreas(rows: PreviewRow[], erros: ValidationError[]) {
+    const required = ['FAZENDA', 'TALHAO', 'AREA_HA']
+    rows.forEach((row, i) => {
+      required.forEach(campo => {
+        if (!row[campo]) erros.push({ linha: i + 2, campo, mensagem: `Campo ${campo} obrigatório` })
+      })
+      if (row['AREA_HA'] && isNaN(Number(row['AREA_HA'])))
+        erros.push({ linha: i + 2, campo: 'AREA_HA', mensagem: 'Deve ser um número (ex: 10.5)' })
+    })
   }
 
   function validateInventario(rows: PreviewRow[], erros: ValidationError[]) {
@@ -113,7 +126,9 @@ export function ImportarClient() {
     setMsgErro(null)
 
     try {
-      if (aba === 'inventario') {
+      if (aba === 'areas') {
+        await importarAreas()
+      } else if (aba === 'inventario') {
         await importarInventario()
       } else if (aba === 'defensivos') {
         await importarDefensivos()
@@ -125,6 +140,49 @@ export function ImportarClient() {
       setMsgErro(String(e))
       setFase('erro')
     }
+  }
+
+  async function importarAreas() {
+    let fazendasIns = 0, talhoesIns = 0, talhoesAtual = 0
+
+    for (const row of preview) {
+      const nomeFazenda = String(row['FAZENDA']).trim()
+      const nomeTalhao  = String(row['TALHAO']).trim()
+      const areaHa      = Number(String(row['AREA_HA']).replace(',', '.'))
+      const municipio   = row['MUNICIPIO'] ? String(row['MUNICIPIO']).trim() : null
+      const uf          = row['UF'] ? String(row['UF']).trim().toUpperCase() : null
+      const polo        = row['POLO'] ? String(row['POLO']).trim() : null
+
+      // Busca ou cria fazenda
+      let { data: fazenda } = await supabase
+        .from('fazendas').select('id').eq('nome', nomeFazenda).maybeSingle()
+
+      if (!fazenda) {
+        const { data: nova } = await supabase.from('fazendas').insert({
+          nome: nomeFazenda, municipio, uf, polo
+        }).select('id').single()
+        fazenda = nova
+        fazendasIns++
+      }
+
+      if (!fazenda) continue
+
+      // Busca ou cria talhão
+      const { data: talhaoExist } = await supabase
+        .from('talhoes').select('id').eq('fazenda_id', fazenda.id).eq('nome', nomeTalhao).maybeSingle()
+
+      if (talhaoExist) {
+        await supabase.from('talhoes').update({ area_ha: areaHa }).eq('id', talhaoExist.id)
+        talhoesAtual++
+      } else {
+        await supabase.from('talhoes').insert({
+          fazenda_id: fazenda.id, nome: nomeTalhao, area_ha: areaHa
+        })
+        talhoesIns++
+      }
+    }
+
+    setResultado({ fazendas_criadas: fazendasIns, talhoes_inseridos: talhoesIns, talhoes_atualizados: talhoesAtual })
   }
 
   async function importarInventario() {
@@ -266,6 +324,10 @@ export function ImportarClient() {
   // ─── Modelos para download ───────────────────────────────────────────────
   function baixarModelo(tipo: TabImport) {
     const modelos: Record<TabImport, { colunas: string[]; exemplo: (string|number)[] }> = {
+      areas: {
+        colunas: ['FAZENDA', 'TALHAO', 'AREA_HA', 'MUNICIPIO', 'UF', 'POLO'],
+        exemplo: ['Fazenda Santa Maria', 'Talhão 01', 25.5, 'Dourados', 'MS', 'Polo Sul'],
+      },
       inventario: {
         colunas: ['CHAVESIG','SAFRA','POLO','EMPRESA','EMPDESC','MOD','NUM','FAZENDA','SETOR',
                   'TALHAO','BLOCO','BLOCO_COLH','BLOCO_PLAN','AREA_HA','AREA_DANO','VARIED',
@@ -302,6 +364,7 @@ export function ImportarClient() {
 
   // ─── UI ──────────────────────────────────────────────────────────────────
   const tabs: { key: TabImport; label: string; desc: string }[] = [
+    { key: 'areas',      label: 'Fazendas e Talhões', desc: 'Importa fazendas e talhões com hectares a partir de planilha simples' },
     { key: 'inventario', label: 'Inventário MV (SIG)', desc: 'Importa fazendas e talhões direto do arquivo exportado pelo SIG' },
     { key: 'defensivos', label: 'Defensivos / Estoque', desc: 'Cadastra defensivos e estoque inicial em lote' },
     { key: 'compras',    label: 'Compras / NFs',        desc: 'Registra entradas de estoque com nota fiscal e preços' },
@@ -492,7 +555,7 @@ export function ImportarClient() {
                     Nova importação
                   </Button>
                   <Button asChild>
-                    <a href={aba === 'inventario' ? '/fazendas' : '/estoque'}>
+                    <a href={aba === 'areas' || aba === 'inventario' ? '/fazendas' : '/estoque'}>
                       Ver resultado →
                     </a>
                   </Button>
