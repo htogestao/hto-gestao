@@ -15,21 +15,22 @@ interface NavItem {
   label: string
   icon: React.ElementType
   adminOnly?: boolean
+  fieldHidden?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',        label: 'Dashboard',       icon: LayoutDashboard },
   { href: '/fazendas',         label: 'Fazendas',        icon: MapPin },
   { href: '/talhoes',          label: 'Talhões',         icon: Layers },
-  { href: '/defensivos',       label: 'Defensivos',      icon: FlaskConical },
+  { href: '/defensivos',       label: 'Defensivos',      icon: FlaskConical,   fieldHidden: true },
   { href: '/estoque',          label: 'Estoque & Lotes', icon: Package },
-  { href: '/compras',          label: 'Compras (NFs)',   icon: ShoppingCart },
+  { href: '/compras',          label: 'Compras (NFs)',   icon: ShoppingCart,   fieldHidden: true },
   { href: '/aplicacoes',       label: 'Aplicações',      icon: Tractor },
   { href: '/movimentacoes',    label: 'Movimentações',   icon: ArrowLeftRight },
-  { href: '/relatorios',       label: 'Relatórios',      icon: FileText },
-  { href: '/importar',         label: 'Importar Excel',  icon: Upload, adminOnly: true },
-  { href: '/exportar',         label: 'Exportar Excel',  icon: Download },
-  { href: '/usuarios',         label: 'Usuários',        icon: Users, adminOnly: true },
+  { href: '/relatorios',       label: 'Relatórios',      icon: FileText,       fieldHidden: true },
+  { href: '/importar',         label: 'Importar Excel',  icon: Upload,         adminOnly: true },
+  { href: '/exportar',         label: 'Exportar Excel',  icon: Download,       fieldHidden: true },
+  { href: '/usuarios',         label: 'Usuários',        icon: Users,          adminOnly: true },
 ]
 
 interface SidebarProps {
@@ -49,6 +50,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
 
   const visibleItems = NAV_ITEMS.filter(item => {
     if (item.adminOnly && role !== 'admin') return false
+    if (item.fieldHidden && role === 'field') return false
     return true
   })
 
@@ -70,8 +72,9 @@ export function Sidebar({ role, userName }: SidebarProps) {
           'mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-medium',
           role === 'admin'  && 'bg-primary/30 text-primary-foreground',
           role === 'viewer' && 'bg-blue-900/40 text-blue-200',
+          role === 'field'  && 'bg-orange-900/40 text-orange-200',
         )}>
-          {role === 'admin' ? 'Analista / Supervisor' : 'Patrão / Produtor'}
+          {role === 'admin' ? 'Analista / Supervisor' : role === 'field' ? 'Líder de Campo' : 'Patrão / Produtor'}
         </span>
       </div>
 

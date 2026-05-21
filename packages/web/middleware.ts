@@ -36,8 +36,13 @@ export async function middleware(request: NextRequest) {
   if (user && isDash) {
     const { data: profile } = await supabase
       .from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role === 'field')
-      return NextResponse.redirect(new URL('/login?erro=acesso_negado', request.url))
+
+    if (profile?.role === 'field') {
+      const FIELD_ALLOWED = ['/dashboard', '/aplicacoes', '/movimentacoes', '/estoque', '/fazendas', '/talhoes']
+      const allowed = FIELD_ALLOWED.some(p => path === p || path.startsWith(p + '/'))
+      if (!allowed)
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
   }
 
   return supabaseResponse
