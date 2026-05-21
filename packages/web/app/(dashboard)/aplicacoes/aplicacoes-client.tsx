@@ -54,6 +54,9 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
             {emAndamento > 0 && <span className="text-blue-600 font-medium"> {emAndamento} em andamento</span>}
           </p>
         </div>
+        <Link href="/aplicacoes/nova">
+          <Button><Plus className="h-4 w-4 mr-2" />Nova Aplicação</Button>
+        </Link>
       </div>
 
       <div className="flex gap-3 flex-wrap">

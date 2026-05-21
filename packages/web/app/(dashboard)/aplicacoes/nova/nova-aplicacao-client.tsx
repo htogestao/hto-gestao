@@ -1,0 +1,265 @@
+'use client'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Plus, Trash2, ArrowLeft } from 'lucide-react'
+
+interface Fazenda { id: string; nome: string }
+interface Talhao  { id: string; nome: string; fazenda_id: string; area_ha: number | null }
+interface Defensivo { id: string; nome_comercial: string; unidade: string }
+interface Lote { id: string; numero_nf: string | null; defensivo_id: string; quantidade_atual: number }
+
+interface Item {
+  defensivo_id: string
+  lote_id: string
+  quantidade_usada: string
+  quantidade_sobrou: string
+  dose_por_hectare: string
+  calda_total_l: string
+}
+
+const ITEM_VAZIO: Item = {
+  defensivo_id: '', lote_id: '',
+  quantidade_usada: '', quantidade_sobrou: '0',
+  dose_por_hectare: '', calda_total_l: '',
+}
+
+export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, userId, userName }: {
+  fazendas: Fazenda[]; talhoes: Talhao[]; defensivos: Defensivo[]
+  lotes: Lote[]; userId: string; userName: string
+}) {
+  const supabase = createClient()
+  const router   = useRouter()
+
+  const [fazendaId, setFazendaId]   = useState('')
+  const [talhaoId,  setTalhaoId]    = useState('')
+  const [data,      setData]        = useState(new Date().toISOString().split('T')[0])
+  const [area,      setArea]        = useState('')
+  const [praga,     setPraga]       = useState('')
+  const [clima,     setClima]       = useState('')
+  const [obs,       setObs]         = useState('')
+  const [status,    setStatus]      = useState<'em_andamento' | 'encerrada'>('encerrada')
+  const [itens,     setItens]       = useState<Item[]>([{ ...ITEM_VAZIO }])
+  const [salvando,  setSalvando]    = useState(false)
+  const [erro,      setErro]        = useState('')
+
+  const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
+
+  function atualizarItem(i: number, campo: keyof Item, valor: string) {
+    setItens(prev => prev.map((it, idx) => idx === i ? { ...it, [campo]: valor } : it))
+  }
+
+  function lotesDoDefensivo(defId: string) {
+    return lotes.filter(l => l.defensivo_id === defId)
+  }
+
+  async function salvar() {
+    if (!fazendaId || !talhaoId || !data) { setErro('Preencha fazenda, talhão e data.'); return }
+    if (itens.some(it => !it.defensivo_id || !it.quantidade_usada)) {
+      setErro('Preencha defensivo e quantidade usada em todos os itens.'); return
+    }
+    setErro(''); setSalvando(true)
+    try {
+      const { data: aplic, error: errAplic } = await supabase
+        .from('aplicacoes')
+        .insert({
+          fazenda_id: fazendaId, talhao_id: talhaoId,
+          data, status,
+          area_aplicada_ha: area ? parseFloat(area) : null,
+          praga_alvo: praga || null,
+          condicoes_climaticas: clima || null,
+          observacoes: obs || null,
+          responsavel_id: userId,
+        })
+        .select('id').single()
+
+      if (errAplic) throw errAplic
+
+      const itensSalvar = itens.map(it => ({
+        aplicacao_id: aplic!.id,
+        defensivo_id: it.defensivo_id,
+        lote_id: it.lote_id || null,
+        quantidade_usada: parseFloat(it.quantidade_usada),
+        quantidade_sobrou: parseFloat(it.quantidade_sobrou) || 0,
+        dose_por_hectare: it.dose_por_hectare ? parseFloat(it.dose_por_hectare) : null,
+        calda_total_l: it.calda_total_l ? parseFloat(it.calda_total_l) : null,
+      }))
+
+      const { error: errItens } = await supabase.from('aplicacao_itens').insert(itensSalvar)
+      if (errItens) throw errItens
+
+      router.push('/aplicacoes')
+    } catch (e: any) {
+      setErro(e.message ?? 'Erro ao salvar.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="p-4 space-y-4 max-w-2xl mx-auto pb-10">
+      <div className="flex items-center gap-3">
+        <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <h1 className="text-xl font-bold">Nova Aplicação</h1>
+      </div>
+
+      {erro && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{erro}</div>}
+
+      {/* Dados gerais */}
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-sm">Dados da Aplicação</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">Fazenda *</label>
+            <select
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={fazendaId} onChange={e => { setFazendaId(e.target.value); setTalhaoId('') }}
+            >
+              <option value="">Selecione...</option>
+              {fazendas.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Talhão *</label>
+            <select
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={talhaoId} onChange={e => setTalhaoId(e.target.value)}
+              disabled={!fazendaId}
+            >
+              <option value="">Selecione...</option>
+              {talhoesFazenda.map(t => (
+                <option key={t.id} value={t.id}>{t.nome}{t.area_ha ? ` (${t.area_ha} ha)` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Data *</label>
+              <Input type="date" className="mt-1" value={data} onChange={e => setData(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Área aplicada (ha)</label>
+              <Input type="number" step="0.1" placeholder="0.0" className="mt-1" value={area} onChange={e => setArea(e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Status</label>
+            <select
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={status} onChange={e => setStatus(e.target.value as any)}
+            >
+              <option value="encerrada">Encerrada</option>
+              <option value="em_andamento">Em Andamento</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Praga / Alvo</label>
+            <Input className="mt-1" placeholder="Ex: Cigarrinha, Broca..." value={praga} onChange={e => setPraga(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Condições Climáticas</label>
+            <Input className="mt-1" placeholder="Ex: Céu limpo, vento fraco..." value={clima} onChange={e => setClima(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Observações</label>
+            <Input className="mt-1" placeholder="Observações adicionais..." value={obs} onChange={e => setObs(e.target.value)} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Itens / Defensivos */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Defensivos Utilizados</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setItens(prev => [...prev, { ...ITEM_VAZIO }])}>
+              <Plus className="h-4 w-4 mr-1" />Adicionar
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {itens.map((it, i) => (
+            <div key={i} className="space-y-2 border rounded-md p-3 relative">
+              {itens.length > 1 && (
+                <button
+                  onClick={() => setItens(prev => prev.filter((_, idx) => idx !== i))}
+                  className="absolute top-2 right-2 text-red-400 hover:text-red-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+
+              <div>
+                <label className="text-xs font-medium">Defensivo *</label>
+                <select
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={it.defensivo_id}
+                  onChange={e => atualizarItem(i, 'defensivo_id', e.target.value)}
+                >
+                  <option value="">Selecione...</option>
+                  {defensivos.map(d => <option key={d.id} value={d.id}>{d.nome_comercial} ({d.unidade})</option>)}
+                </select>
+              </div>
+
+              {it.defensivo_id && lotesDoDefensivo(it.defensivo_id).length > 0 && (
+                <div>
+                  <label className="text-xs font-medium">Lote / NF</label>
+                  <select
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={it.lote_id}
+                    onChange={e => atualizarItem(i, 'lote_id', e.target.value)}
+                  >
+                    <option value="">Sem lote</option>
+                    {lotesDoDefensivo(it.defensivo_id).map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.numero_nf ?? 'S/NF'} — saldo: {l.quantidade_atual}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-medium">Qtd Usada *</label>
+                  <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
+                    value={it.quantidade_usada} onChange={e => atualizarItem(i, 'quantidade_usada', e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Qtd Sobrou</label>
+                  <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
+                    value={it.quantidade_sobrou} onChange={e => atualizarItem(i, 'quantidade_sobrou', e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Dose/ha</label>
+                  <Input type="number" step="0.001" placeholder="0.000" className="mt-1"
+                    value={it.dose_por_hectare} onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Calda total (L)</label>
+                  <Input type="number" step="1" placeholder="0" className="mt-1"
+                    value={it.calda_total_l} onChange={e => atualizarItem(i, 'calda_total_l', e.target.value)} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Button className="w-full" size="lg" onClick={salvar} disabled={salvando}>
+        {salvando ? 'Salvando...' : 'Salvar Aplicação'}
+      </Button>
+    </div>
+  )
+}
