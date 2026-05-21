@@ -97,7 +97,7 @@ export function FazendasClient({ fazendas: inicial, role }: { fazendas: Fazenda[
           <div className="p-5 space-y-3">
             {([
               ['nome','Nome *','text'],['municipio','Município','text'],['uf','UF','text'],
-              ['unidade','Usina','text'],['fornecedor_principal','Fornecedor Principal','text'],
+              ['fornecedor_principal','Fornecedor Principal','text'],
               ['unidade_industrial','Unidade Industrial','text'],['codigo_externo','Código Externo','text'],
               ['observacoes','Observações','text'],
             ] as [keyof Fazenda, string, string][]).map(([k, label]) => (
@@ -106,6 +106,19 @@ export function FazendasClient({ fazendas: inicial, role }: { fazendas: Fazenda[
                 <Input value={(form[k] as string) ?? ''} onChange={e => set(k, e.target.value)} />
               </div>
             ))}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Usina</label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={form.unidade ?? ''}
+                onChange={e => set('unidade', e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                <option value="ATVOS-USL">ATVOS-USL</option>
+                <option value="USL">USL</option>
+                <option value="COCAL">COCAL</option>
+              </select>
+            </div>
           </div>
           <div className="flex justify-end gap-2 p-5 border-t">
             <Button variant="outline" onClick={fecharModal}>Cancelar</Button>
