@@ -5,6 +5,7 @@ import { AlertasCard } from '@/components/alertas-card'
 import { GraficoEstoque } from '@/components/grafico-estoque'
 import { formatarNumero, formatarMoeda } from '@/lib/utils'
 import { Package, Tractor, AlertTriangle, DollarSign, MapPin, Layers } from 'lucide-react'
+import { AlertasAplicacaoCard } from '@/components/alertas-aplicacao-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,7 @@ export default async function DashboardPage() {
     { data: aplicacoesMes },
     { data: fazendas },
     { data: talhoes },
+    { data: aplicacoesRecentes },
   ] = await Promise.all([
     supabase.rpc('estoque_atual'),
     supabase.rpc('alertas_ativos'),
@@ -31,6 +33,17 @@ export default async function DashboardPage() {
       .gte('data', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]),
     supabase.from('fazendas').select('id', { count: 'exact', head: true }),
     supabase.from('talhoes').select('id', { count: 'exact', head: true }),
+    supabase.from('aplicacoes')
+      .select(`
+        id, data,
+        fazenda:fazendas(nome),
+        talhao:talhoes(nome),
+        itens:aplicacao_itens(
+          defensivo:defensivos(nome_comercial, reentrada_horas, carencia_dias)
+        )
+      `)
+      .gte('data', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      .order('data', { ascending: false }),
   ])
 
   const totalProdutos  = estoque?.length ?? 0
@@ -39,6 +52,50 @@ export default async function DashboardPage() {
   const alertasCount   = alertas?.length ?? 0
   const apEmAndamento  = aplicacoesMes?.filter(a => a.status === 'em_andamento').length ?? 0
   const apEncerradas   = aplicacoesMes?.filter(a => a.status === 'encerrada').length ?? 0
+
+  // Calcular alertas de reentrada e carência
+  const agora = new Date()
+  const alertasAplicacao: {
+    tipo: 'reentrada' | 'carencia'; fazenda: string; talhao: string
+    liberadoEm: string; horasRestantes?: number; diasRestantes?: number; defensivo: string
+  }[] = []
+
+  for (const a of aplicacoesRecentes ?? []) {
+    const itens = (a.itens as any[]) ?? []
+    for (const it of itens) {
+      const def = it.defensivo as { nome_comercial: string; reentrada_horas: number | null; carencia_dias: number | null } | null
+      if (!def) continue
+      const dataAplic = new Date(a.data + 'T00:00:00')
+      const fazenda = (a.fazenda as any)?.nome ?? ''
+      const talhao  = (a.talhao  as any)?.nome ?? ''
+
+      // Reentrada
+      if (def.reentrada_horas) {
+        const liberado = new Date(dataAplic.getTime() + def.reentrada_horas * 60 * 60 * 1000)
+        if (liberado > agora) {
+          alertasAplicacao.push({
+            tipo: 'reentrada', fazenda, talhao,
+            liberadoEm: liberado.toISOString(),
+            horasRestantes: Math.ceil((liberado.getTime() - agora.getTime()) / (1000 * 60 * 60)),
+            defensivo: def.nome_comercial,
+          })
+        }
+      }
+
+      // Carência
+      if (def.carencia_dias) {
+        const liberado = new Date(dataAplic.getTime() + def.carencia_dias * 24 * 60 * 60 * 1000)
+        if (liberado > agora) {
+          alertasAplicacao.push({
+            tipo: 'carencia', fazenda, talhao,
+            liberadoEm: liberado.toISOString(),
+            diasRestantes: Math.ceil((liberado.getTime() - agora.getTime()) / (1000 * 60 * 60 * 24)),
+            defensivo: def.nome_comercial,
+          })
+        }
+      }
+    }
+  }
 
   // Valor total em estoque (só admin/viewer)
   const { data: lotes } = await supabase
@@ -151,8 +208,9 @@ export default async function DashboardPage() {
         <div className="lg:col-span-2">
           <GraficoEstoque estoque={estoque ?? []} />
         </div>
-        <div>
+        <div className="space-y-4">
           <AlertasCard alertas={alertas ?? []} />
+          <AlertasAplicacaoCard alertas={alertasAplicacao} />
         </div>
       </div>
     </div>
