@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, MapPin, Layers, FlaskConical, Package,
   ShoppingCart, Tractor, ArrowLeftRight, FileText,
-  Upload, Download, Users, LogOut, Leaf, ChevronRight, UserCircle,
+  Upload, Download, Users, LogOut, Leaf, ChevronRight, UserCircle, ClipboardList,
 } from 'lucide-react'
 import type { UserRole } from '@agro/shared'
 
@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/relatorios',       label: 'Relatórios',      icon: FileText,       fieldHidden: true },
   { href: '/importar',         label: 'Importar Excel',  icon: Upload,         adminOnly: true },
   { href: '/exportar',         label: 'Exportar Excel',  icon: Download,       fieldHidden: true },
+  { href: '/inventario',       label: 'Inventário Físico', icon: ClipboardList, fieldHidden: true },
   { href: '/usuarios',         label: 'Usuários',        icon: Users,          adminOnly: true },
   { href: '/perfil',           label: 'Meu Perfil',      icon: UserCircle },
 ]
