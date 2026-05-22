@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Trash2, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, AlertTriangle } from 'lucide-react'
 
 interface Fazenda   { id: string; nome: string }
 interface Talhao    { id: string; nome: string; fazenda_id: string; area_ha: number | null }
@@ -62,8 +62,10 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
         }))
       : [{ defensivo_id: '', lote_id: '', quantidade_usada: '', quantidade_sobrou: '0', dose_por_hectare: '', calda_total_l: '' }]
   )
-  const [salvando, setSalvando] = useState(false)
-  const [erro,     setErro]     = useState('')
+  const [salvando,  setSalvando]  = useState(false)
+  const [deletando, setDeletando] = useState(false)
+  const [confirmar, setConfirmar] = useState(false)
+  const [erro,      setErro]      = useState('')
 
   const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
 
@@ -73,6 +75,19 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
 
   function lotesDoDefensivo(defId: string) {
     return lotes.filter(l => l.defensivo_id === defId)
+  }
+
+  async function deletar() {
+    setDeletando(true)
+    try {
+      await supabase.from('aplicacao_itens').delete().eq('aplicacao_id', aplicacao.id)
+      await supabase.from('aplicacoes').delete().eq('id', aplicacao.id)
+      router.push('/aplicacoes')
+      router.refresh()
+    } catch (e: any) {
+      setErro(e.message ?? 'Erro ao deletar.')
+      setDeletando(false)
+    }
   }
 
   async function salvar() {
@@ -129,12 +144,48 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
 
   return (
     <div className="p-4 space-y-4 max-w-2xl mx-auto pb-10">
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <h1 className="text-xl font-bold">Editar Aplicação</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <h1 className="text-xl font-bold">Editar Aplicação</h1>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-red-500 border-red-200 hover:bg-red-50"
+          onClick={() => setConfirmar(true)}
+        >
+          <Trash2 className="h-4 w-4 mr-1" />
+          Deletar
+        </Button>
       </div>
+
+      {/* Modal de confirmação */}
+      {confirmar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertTriangle className="h-6 w-6 shrink-0" />
+              <p className="font-semibold">Deletar esta aplicação?</p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Essa ação não pode ser desfeita. Todos os defensivos registrados nessa aplicação serão removidos.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setConfirmar(false)}>Cancelar</Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={deletar}
+                disabled={deletando}
+              >
+                {deletando ? 'Deletando...' : 'Sim, deletar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {erro && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{erro}</div>}
 
