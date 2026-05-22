@@ -16,6 +16,12 @@ interface Defensivo {
   id: string; nome_comercial: string; principio_ativo: string; classe: string
   unidade: string; estoque_minimo: number; empresa: string | null
   local_armazenamento: string | null; fornecedor_padrao: string | null; observacoes: string | null
+  registro_mapa: string | null; formulacao: string | null
+  classe_toxicologica: string | null; classe_ambiental: string | null
+  modo_acao: string | null; grupo_quimico: string | null
+  carencia_dias: number | null; reentrada_horas: number | null
+  culturas_autorizadas: string | null; dose_min_ha: number | null
+  dose_max_ha: number | null; epi_obrigatorio: string | null; restricoes: string | null
 }
 
 const CLASSE_COR: Record<string, string> = {
@@ -25,12 +31,29 @@ const CLASSE_COR: Record<string, string> = {
   nematicida: 'bg-pink-100 text-pink-800', adubo_foliar: 'bg-lime-100 text-lime-800',
 }
 
+const FORMULACOES = ['SC','EC','WG','OD','SL','WP','CS','EW','FS','GR','ME','SE','SP','TB','UL','Outro']
+const MODOS_ACAO  = ['Sistêmico','Contato','Translaminar','Mesostêmico','Fumigante','Ingestão','Outro']
+const TOX_LABELS: Record<string, string> = {
+  'I':'I — Extremamente Tóxico','II':'II — Altamente Tóxico',
+  'III':'III — Moderadamente Tóxico','IV':'IV — Pouco Tóxico',
+}
+const AMB_LABELS: Record<string, string> = {
+  'I':'I — Altamente Perigoso','II':'II — Muito Perigoso',
+  'III':'III — Perigoso','IV':'IV — Pouco Perigoso',
+}
+
 const FORM_DEFAULT = {
   nome_comercial: '', principio_ativo: '', classe: 'herbicida' as ClasseDefensivo,
   unidade: 'L' as 'L'|'kg', estoque_minimo: 0, empresa: '',
   local_armazenamento: '' as LocalArmazenamento | '',
   fornecedor_padrao: '', observacoes: '',
+  registro_mapa: '', formulacao: '', classe_toxicologica: '', classe_ambiental: '',
+  modo_acao: '', grupo_quimico: '', carencia_dias: '', reentrada_horas: '',
+  culturas_autorizadas: '', dose_min_ha: '', dose_max_ha: '',
+  epi_obrigatorio: '', restricoes: '',
 }
+
+type AbaForm = 'identificacao' | 'classificacao' | 'uso' | 'estoque'
 
 export function DefensivosClient({ defensivos: inicial, role }: { defensivos: Defensivo[]; role: string }) {
   const isAdmin  = role === 'admin'
@@ -42,6 +65,7 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
   const [filtroClasse, setFiltro]   = useState('todos')
   const [modal, setModal]           = useState<'novo' | 'editar' | null>(null)
   const [form, setForm]             = useState(FORM_DEFAULT)
+  const [abaForm, setAbaForm]       = useState<AbaForm>('identificacao')
   const [editId, setEditId]         = useState<string | null>(null)
   const [saving, setSaving]         = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -54,7 +78,9 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
     return mb && mc
   })
 
-  function abrirNovo() { setForm(FORM_DEFAULT); setEditId(null); setModal('novo') }
+  function abrirNovo() {
+    setForm(FORM_DEFAULT); setEditId(null); setAbaForm('identificacao'); setModal('novo')
+  }
   function abrirEditar(d: Defensivo) {
     setForm({
       nome_comercial: d.nome_comercial, principio_ativo: d.principio_ativo,
@@ -62,18 +88,44 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
       estoque_minimo: d.estoque_minimo, empresa: d.empresa ?? '',
       local_armazenamento: (d.local_armazenamento ?? '') as LocalArmazenamento | '',
       fornecedor_padrao: d.fornecedor_padrao ?? '', observacoes: d.observacoes ?? '',
+      registro_mapa: d.registro_mapa ?? '', formulacao: d.formulacao ?? '',
+      classe_toxicologica: d.classe_toxicologica ?? '', classe_ambiental: d.classe_ambiental ?? '',
+      modo_acao: d.modo_acao ?? '', grupo_quimico: d.grupo_quimico ?? '',
+      carencia_dias: d.carencia_dias != null ? String(d.carencia_dias) : '',
+      reentrada_horas: d.reentrada_horas != null ? String(d.reentrada_horas) : '',
+      culturas_autorizadas: d.culturas_autorizadas ?? '',
+      dose_min_ha: d.dose_min_ha != null ? String(d.dose_min_ha) : '',
+      dose_max_ha: d.dose_max_ha != null ? String(d.dose_max_ha) : '',
+      epi_obrigatorio: d.epi_obrigatorio ?? '', restricoes: d.restricoes ?? '',
     })
-    setEditId(d.id); setModal('editar')
+    setEditId(d.id); setAbaForm('identificacao'); setModal('editar')
   }
 
   async function salvar() {
     setSaving(true)
     const payload = {
-      ...form,
+      nome_comercial: form.nome_comercial,
+      principio_ativo: form.principio_ativo,
+      classe: form.classe,
+      unidade: form.unidade,
+      estoque_minimo: form.estoque_minimo,
       empresa: form.empresa || null,
       local_armazenamento: form.local_armazenamento || null,
       fornecedor_padrao: form.fornecedor_padrao || null,
       observacoes: form.observacoes || null,
+      registro_mapa: form.registro_mapa || null,
+      formulacao: form.formulacao || null,
+      classe_toxicologica: form.classe_toxicologica || null,
+      classe_ambiental: form.classe_ambiental || null,
+      modo_acao: form.modo_acao || null,
+      grupo_quimico: form.grupo_quimico || null,
+      carencia_dias: form.carencia_dias ? parseInt(form.carencia_dias as string) : null,
+      reentrada_horas: form.reentrada_horas ? parseInt(form.reentrada_horas as string) : null,
+      culturas_autorizadas: form.culturas_autorizadas || null,
+      dose_min_ha: form.dose_min_ha ? parseFloat(form.dose_min_ha as string) : null,
+      dose_max_ha: form.dose_max_ha ? parseFloat(form.dose_max_ha as string) : null,
+      epi_obrigatorio: form.epi_obrigatorio || null,
+      restricoes: form.restricoes || null,
     }
     if (modal === 'novo') {
       const { data } = await supabase.from('defensivos').insert(payload).select().single()
@@ -95,6 +147,13 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
 
   const F = (key: keyof typeof FORM_DEFAULT, val: string | number) =>
     setForm(prev => ({ ...prev, [key]: val }))
+
+  const abas: { key: AbaForm; label: string }[] = [
+    { key: 'identificacao', label: '1. Identificação' },
+    { key: 'classificacao', label: '2. Classificação' },
+    { key: 'uso',           label: '3. Uso / Bula' },
+    { key: 'estoque',       label: '4. Estoque' },
+  ]
 
   return (
     <div className="p-6 space-y-4">
@@ -132,9 +191,9 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
                   <th className="text-left p-3 font-medium">Princípio Ativo</th>
                   <th className="text-left p-3 font-medium">Classe</th>
                   <th className="text-left p-3 font-medium">Empresa</th>
-                  <th className="text-left p-3 font-medium">Local</th>
-                  <th className="text-center p-3 font-medium">Unid.</th>
-                  <th className="text-right p-3 font-medium">Estoque Mín.</th>
+                  <th className="text-center p-3 font-medium">Carência</th>
+                  <th className="text-center p-3 font-medium">Reentrada</th>
+                  <th className="text-center p-3 font-medium">Tox.</th>
                   {isAdmin && <th className="text-center p-3 font-medium">Ações</th>}
                 </tr>
               </thead>
@@ -150,11 +209,26 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
                       </span>
                     </td>
                     <td className="p-3 text-muted-foreground">{d.empresa ?? '—'}</td>
-                    <td className="p-3 text-muted-foreground capitalize text-xs">
-                      {d.local_armazenamento ? LOCAL_LABELS[d.local_armazenamento as LocalArmazenamento] : '—'}
+                    <td className="p-3 text-center text-sm">
+                      {d.carencia_dias != null
+                        ? <span className="font-medium">{d.carencia_dias}d</span>
+                        : <span className="text-muted-foreground">—</span>}
                     </td>
-                    <td className="p-3 text-center font-mono">{d.unidade}</td>
-                    <td className="p-3 text-right font-mono">{d.estoque_minimo} {d.unidade}</td>
+                    <td className="p-3 text-center text-sm">
+                      {d.reentrada_horas != null
+                        ? <span className="font-medium">{d.reentrada_horas}h</span>
+                        : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="p-3 text-center">
+                      {d.classe_toxicologica
+                        ? <span className={cn('px-1.5 py-0.5 rounded text-xs font-bold',
+                            d.classe_toxicologica === 'I' ? 'bg-red-100 text-red-700' :
+                            d.classe_toxicologica === 'II' ? 'bg-orange-100 text-orange-700' :
+                            d.classe_toxicologica === 'III' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-green-100 text-green-700'
+                          )}>Cl.{d.classe_toxicologica}</span>
+                        : <span className="text-muted-foreground">—</span>}
+                    </td>
                     {isAdmin && (
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-1">
@@ -187,78 +261,238 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
       {/* Modal novo/editar */}
       {modal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
               <h2 className="font-bold text-lg">{modal === 'novo' ? 'Novo Defensivo' : 'Editar Defensivo'}</h2>
               <button onClick={() => setModal(null)}><X className="h-5 w-5 text-muted-foreground" /></button>
             </div>
-            <div className="p-5 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome Comercial *</label>
-                  <Input value={form.nome_comercial} onChange={e => F('nome_comercial', e.target.value)} placeholder="Ex: APROACH POWER" />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Princípio Ativo *</label>
-                  <Input value={form.principio_ativo} onChange={e => F('principio_ativo', e.target.value)} placeholder="Ex: PICOXISTROBINA, CIPROCONAZOLE" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Classe *</label>
-                  <Select value={form.classe} onValueChange={v => F('classe', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(CLASSE_LABELS).map(([k,v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidade *</label>
-                  <Select value={form.unidade} onValueChange={v => F('unidade', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="L">Litros (L)</SelectItem>
-                      <SelectItem value="kg">Quilogramas (kg)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Empresa / Fabricante</label>
-                  <Input value={form.empresa} onChange={e => F('empresa', e.target.value)} placeholder="Ex: SYNGENTA" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Local de Armazenamento</label>
-                  <Select value={form.local_armazenamento || ''} onValueChange={v => F('local_armazenamento', v)}>
-                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">—</SelectItem>
-                      {Object.entries(LOCAL_LABELS).map(([k,v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Estoque Mínimo</label>
-                  <Input type="number" step="0.1" value={form.estoque_minimo}
-                    onChange={e => F('estoque_minimo', parseFloat(e.target.value) || 0)} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Fornecedor Padrão</label>
-                  <Input value={form.fornecedor_padrao} onChange={e => F('fornecedor_padrao', e.target.value)} />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Observações</label>
-                  <Input value={form.observacoes} onChange={e => F('observacoes', e.target.value)} />
-                </div>
-              </div>
+
+            {/* Abas */}
+            <div className="flex border-b overflow-x-auto">
+              {abas.map(a => (
+                <button
+                  key={a.key}
+                  onClick={() => setAbaForm(a.key)}
+                  className={cn(
+                    'px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                    abaForm === a.key
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {a.label}
+                </button>
+              ))}
             </div>
-            <div className="flex gap-2 justify-end p-5 border-t">
-              <Button variant="outline" onClick={() => setModal(null)}>Cancelar</Button>
-              <Button onClick={salvar} disabled={saving || !form.nome_comercial || !form.principio_ativo}>
-                {saving ? 'Salvando...' : <><Check className="h-4 w-4 mr-1" />Salvar</>}
-              </Button>
+
+            <div className="p-5 space-y-3">
+
+              {/* ABA 1 — Identificação */}
+              {abaForm === 'identificacao' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome Comercial *</label>
+                    <Input value={form.nome_comercial} onChange={e => F('nome_comercial', e.target.value)} placeholder="Ex: ENGEO PLENO S" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Ingrediente Ativo / Princípio Ativo *</label>
+                    <Input value={form.principio_ativo} onChange={e => F('principio_ativo', e.target.value)} placeholder="Ex: TIAMETOXAM + LAMBDA-CIALOTRINA" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Fabricante / Empresa</label>
+                      <Input value={form.empresa} onChange={e => F('empresa', e.target.value)} placeholder="Ex: SYNGENTA" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Registro MAPA</label>
+                      <Input value={form.registro_mapa} onChange={e => F('registro_mapa', e.target.value)} placeholder="Ex: 00321010" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Grupo Químico</label>
+                    <Input value={form.grupo_quimico} onChange={e => F('grupo_quimico', e.target.value)} placeholder="Ex: Neonicotinoide + Piretroide" />
+                  </div>
+                </div>
+              )}
+
+              {/* ABA 2 — Classificação */}
+              {abaForm === 'classificacao' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Classe *</label>
+                      <Select value={form.classe} onValueChange={v => F('classe', v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(CLASSE_LABELS).map(([k,v]) => (
+                            <SelectItem key={k} value={k}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Formulação</label>
+                      <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        value={form.formulacao} onChange={e => F('formulacao', e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {FORMULACOES.map(f => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Classe Toxicológica</label>
+                      <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        value={form.classe_toxicologica} onChange={e => F('classe_toxicologica', e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {Object.entries(TOX_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Classe Ambiental</label>
+                      <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        value={form.classe_ambiental} onChange={e => F('classe_ambiental', e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {Object.entries(AMB_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Modo de Ação</label>
+                    <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      value={form.modo_acao} onChange={e => F('modo_acao', e.target.value)}>
+                      <option value="">Selecione...</option>
+                      {MODOS_ACAO.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* ABA 3 — Uso / Bula */}
+              {abaForm === 'uso' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">⏳ Carência (dias)</label>
+                      <Input type="number" min="0" value={form.carencia_dias}
+                        onChange={e => F('carencia_dias', e.target.value)}
+                        placeholder="Ex: 14" />
+                      <p className="text-xs text-muted-foreground mt-1">Dias entre aplicação e colheita</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">🚫 Reentrada (horas)</label>
+                      <Input type="number" min="0" value={form.reentrada_horas}
+                        onChange={e => F('reentrada_horas', e.target.value)}
+                        placeholder="Ex: 24" />
+                      <p className="text-xs text-muted-foreground mt-1">Horas até reentrar no talhão</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Dose Mínima/ha</label>
+                      <Input type="number" step="0.01" value={form.dose_min_ha}
+                        onChange={e => F('dose_min_ha', e.target.value)} placeholder="Ex: 0.3" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Dose Máxima/ha</label>
+                      <Input type="number" step="0.01" value={form.dose_max_ha}
+                        onChange={e => F('dose_max_ha', e.target.value)} placeholder="Ex: 0.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Culturas Autorizadas</label>
+                    <Input value={form.culturas_autorizadas}
+                      onChange={e => F('culturas_autorizadas', e.target.value)}
+                      placeholder="Ex: Cana-de-açúcar, Soja, Milho" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">EPI Obrigatório</label>
+                    <textarea
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-20 resize-none"
+                      value={form.epi_obrigatorio}
+                      onChange={e => F('epi_obrigatorio', e.target.value)}
+                      placeholder="Ex: Macacão, luvas nitrílicas, óculos, máscara PFF2, botas impermeáveis"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Restrições</label>
+                    <textarea
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-16 resize-none"
+                      value={form.restricoes}
+                      onChange={e => F('restricoes', e.target.value)}
+                      placeholder="Ex: Não aplicar com vento acima de 10 km/h, não misturar com..."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* ABA 4 — Estoque */}
+              {abaForm === 'estoque' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidade *</label>
+                      <Select value={form.unidade} onValueChange={v => F('unidade', v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="L">Litros (L)</SelectItem>
+                          <SelectItem value="kg">Quilogramas (kg)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Estoque Mínimo</label>
+                      <Input type="number" step="0.1" value={form.estoque_minimo}
+                        onChange={e => F('estoque_minimo', parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Local de Armazenamento</label>
+                      <Select value={form.local_armazenamento || ''} onValueChange={v => F('local_armazenamento', v)}>
+                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">—</SelectItem>
+                          {Object.entries(LOCAL_LABELS).map(([k,v]) => (
+                            <SelectItem key={k} value={k}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Fornecedor Padrão</label>
+                      <Input value={form.fornecedor_padrao} onChange={e => F('fornecedor_padrao', e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Observações</label>
+                    <textarea
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-16 resize-none"
+                      value={form.observacoes}
+                      onChange={e => F('observacoes', e.target.value)}
+                      placeholder="Observações gerais sobre o produto..."
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Botões navegação + salvar */}
+            <div className="flex items-center justify-between p-5 border-t gap-2">
+              <div className="flex gap-2">
+                {abaForm !== 'identificacao' && (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const idx = abas.findIndex(a => a.key === abaForm)
+                    setAbaForm(abas[idx - 1].key)
+                  }}>← Anterior</Button>
+                )}
+                {abaForm !== 'estoque' && (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const idx = abas.findIndex(a => a.key === abaForm)
+                    setAbaForm(abas[idx + 1].key)
+                  }}>Próximo →</Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setModal(null)}>Cancelar</Button>
+                <Button onClick={salvar} disabled={saving || !form.nome_comercial || !form.principio_ativo}>
+                  {saving ? 'Salvando...' : <><Check className="h-4 w-4 mr-1" />Salvar</>}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
