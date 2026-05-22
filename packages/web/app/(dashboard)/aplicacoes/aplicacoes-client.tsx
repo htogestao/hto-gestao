@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatarData, formatarNumero, cn } from '@/lib/utils'
-import { Search, Tractor, ChevronDown, ChevronRight, Plus, Filter } from 'lucide-react'
+import { Search, Tractor, ChevronDown, ChevronRight, Plus, Pencil } from 'lucide-react'
 import Link from 'next/link'
 
 interface AplicacaoItem {
@@ -121,6 +121,11 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
                       {formatarNumero(a.itens.reduce((s,i) => s + i.quantidade_usada, 0), 1)} unid. total
                     </p>
                   </div>
+                  <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="sm" className="shrink-0">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
                   {aberta ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                 </div>
               </div>
