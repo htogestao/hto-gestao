@@ -7,7 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatarData(iso: string | null | undefined): string {
   if (!iso) return '—'
-  return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR')
+  // Se já tem hora (timestamp completo), parseia direto; senão adiciona T00:00:00 para evitar fuso
+  const date = iso.includes('T') ? new Date(iso) : new Date(iso + 'T00:00:00')
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('pt-BR')
 }
 
 export function formatarMoeda(valor: number | null | undefined): string {
