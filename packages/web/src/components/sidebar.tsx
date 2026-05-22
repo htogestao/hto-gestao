@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, MapPin, Layers, FlaskConical, Package,
   ShoppingCart, Tractor, ArrowLeftRight, FileText,
-  Upload, Download, Users, LogOut, Leaf, ChevronRight,
+  Upload, Download, Users, LogOut, Leaf, ChevronRight, UserCircle,
 } from 'lucide-react'
 import type { UserRole } from '@agro/shared'
 
@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/importar',         label: 'Importar Excel',  icon: Upload,         adminOnly: true },
   { href: '/exportar',         label: 'Exportar Excel',  icon: Download,       fieldHidden: true },
   { href: '/usuarios',         label: 'Usuários',        icon: Users,          adminOnly: true },
+  { href: '/perfil',           label: 'Meu Perfil',      icon: UserCircle },
 ]
 
 interface SidebarProps {
