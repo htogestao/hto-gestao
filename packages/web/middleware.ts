@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
   const isLogin    = path === '/login'
   const PROTECTED  = ['/dashboard', '/fazendas', '/talhoes', '/defensivos',
                        '/estoque', '/compras', '/aplicacoes', '/movimentacoes',
-                       '/relatorios', '/importar', '/exportar', '/usuarios', '/perfil']
+                       '/relatorios', '/importar', '/exportar', '/usuarios', '/perfil', '/inventario']
   const isDash     = path === '/' || PROTECTED.some(p => path === p || path.startsWith(p + '/'))
 
   if (!user && isDash)  return NextResponse.redirect(new URL('/login', request.url))
