@@ -30,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/relatorios',       label: 'Relatórios',      icon: FileText,       fieldHidden: true },
   { href: '/importar',         label: 'Importar Excel',  icon: Upload,         adminOnly: true },
   { href: '/exportar',         label: 'Exportar Excel',  icon: Download,       fieldHidden: true },
-  { href: '/inventario',       label: 'Inventário Físico', icon: ClipboardList, fieldHidden: true },
+  { href: '/inventario',       label: 'Inventário Físico', icon: ClipboardList },
   { href: '/usuarios',         label: 'Usuários',        icon: Users,          adminOnly: true },
   { href: '/perfil',           label: 'Meu Perfil',      icon: UserCircle },
 ]
