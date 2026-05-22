@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Search, Layers, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Search, Layers, Pencil, Trash2, X, History } from 'lucide-react'
+import Link from 'next/link'
 import type { Talhao } from '@agro/shared'
 
 interface Fazenda { id: string; nome: string; municipio: string | null; uf: string | null; unidade: string | null }
@@ -198,24 +199,29 @@ export default function TalhoesClient({ talhoes: initialTalhoes, fazendas, isAdm
                       </td>
                       <td className="px-4 py-3 text-gray-700">{t.numero_corte ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-700">{t.tch_estimado?.toFixed(0) ?? '—'}</td>
-                      {isAdmin && (
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          <Link href={`/talhoes/${t.id}/historico`}>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-800" title="Ver histórico">
+                              <History className="h-3.5 w-3.5" />
+                            </Button>
+                          </Link>
+                          {isAdmin && (<>
                             <Button size="sm" variant="ghost" onClick={() => abrirEditar(t)} className="h-7 w-7 p-0 text-green-700 hover:text-green-900">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => excluir(t)} className="h-7 w-7 p-0 text-red-500 hover:text-red-700">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                          </div>
-                        </td>
-                      )}
+                          </>)}
+                        </div>
+                      </td>
                     </tr>
                   )
                 })}
                 {filtrados.length === 0 && (
                   <tr>
-                    <td colSpan={isAdmin ? 8 : 7} className="text-center py-16 text-gray-400">
+                    <td colSpan={8} className="text-center py-16 text-gray-400">
                       <Layers className="h-10 w-10 mx-auto mb-2 opacity-40" />
                       Nenhum talhão encontrado
                     </td>
