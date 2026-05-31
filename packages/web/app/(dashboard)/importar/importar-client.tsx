@@ -92,22 +92,14 @@ export function ImportarClient() {
   }
 
   function validateDefensivos(rows: PreviewRow[], erros: ValidationError[]) {
-    const required = ['NOME_PRODUTO', 'PRINCIPIO_ATIVO', 'CLASSIFICACAO', 'UNIDADE', 'ESTOQUE_ATUAL']
-    const classesValidas = [
-      'herbicida','fungicida','inseticida','acaricida','adjuvante','espalhante_adesivo',
-      'fertilizante','fertilizante_foliar','adubo_foliar','nematicida','inoculante',
-      'maturador','regulador_crescimento','ativador_crescimento','fungicida_herbicida','outro'
-    ]
+    const required = ['NOME_PRODUTO', 'PRINCIPIO_ATIVO', 'CLASSIFICACAO', 'UNIDADE']
     rows.forEach((row, i) => {
       required.forEach(campo => {
         if (!row[campo]) erros.push({ linha: i + 2, campo, mensagem: `Campo ${campo} obrigatório` })
       })
-      const unid = String(row['UNIDADE'] ?? '').toUpperCase()
-      if (row['UNIDADE'] && unid !== 'LT' && unid !== 'KG' && unid !== 'L')
-        erros.push({ linha: i+2, campo: 'UNIDADE', mensagem: 'Deve ser LT ou KG' })
-      const classe = String(row['CLASSIFICACAO'] ?? '').toLowerCase().replace(/ /g,'_')
-      if (row['CLASSIFICACAO'] && !classesValidas.includes(classe))
-        erros.push({ linha: i+2, campo: 'CLASSIFICACAO', mensagem: `Classe inválida: ${row['CLASSIFICACAO']}` })
+      const unid = String(row['UNIDADE'] ?? '').toUpperCase().trim()
+      if (row['UNIDADE'] && !['LT','KG','L','GL','G'].includes(unid))
+        erros.push({ linha: i+2, campo: 'UNIDADE', mensagem: 'Deve ser LT, KG ou GL' })
     })
   }
 
@@ -231,20 +223,46 @@ export function ImportarClient() {
   }
 
   async function importarDefensivos() {
-    const classesValidas = [
-      'herbicida','fungicida','inseticida','acaricida','adjuvante','espalhante_adesivo',
-      'fertilizante','fertilizante_foliar','adubo_foliar','nematicida','inoculante',
-      'maturador','regulador_crescimento','ativador_crescimento','fungicida_herbicida','outro'
-    ]
+    const CLASSE_MAP: Record<string, string> = {
+      'herbicida': 'herbicida',
+      'fungicida': 'fungicida',
+      'inseticida': 'inseticida',
+      'acaricida': 'acaricida',
+      'adjuvante': 'adjuvante',
+      'espalhante_adesivo': 'espalhante_adesivo',
+      'espalhante adesivo': 'espalhante_adesivo',
+      'fertilizante': 'fertilizante',
+      'fertlizante': 'fertilizante',
+      'ferilizante': 'fertilizante',
+      'fertilizante_foliar': 'fertilizante_foliar',
+      'fertilizante foliar': 'fertilizante_foliar',
+      'fertilizante mineral misto': 'fertilizante',
+      'adubo_foliar': 'adubo_foliar',
+      'adubo foliar': 'adubo_foliar',
+      'nematicida': 'nematicida',
+      'inoculante': 'inoculante',
+      'maturador': 'maturador',
+      'regulador_crescimento': 'regulador_crescimento',
+      'regulador de crescimento': 'regulador_crescimento',
+      'ativador_crescimento': 'ativador_crescimento',
+      'ativador de crescimento': 'ativador_crescimento',
+      'fungicida_herbicida': 'fungicida_herbicida',
+      'fungicida/ herbicida': 'fungicida_herbicida',
+      'fungicida/herbicida': 'fungicida_herbicida',
+      'inseticida / acaricida': 'acaricida',
+      'inseticida/acaricida': 'acaricida',
+      'limpa tanque': 'adjuvante',
+      'equalizador': 'outro',
+    }
     const localValidos = ['quartinho','container','quartinho_container','outro']
     let inseridos = 0, atualizados = 0
 
     for (const row of preview) {
-      const nome   = String(row['NOME_PRODUTO']).trim()
-      const classe = String(row['CLASSIFICACAO'] ?? '').toLowerCase().replace(/ /g,'_')
-      const classeNorm = classesValidas.includes(classe) ? classe : 'outro'
-      const unidRaw = String(row['UNIDADE'] ?? '').toUpperCase()
-      const unidade = unidRaw === 'LT' || unidRaw === 'L' ? 'L' : 'kg'
+      const nome     = String(row['NOME_PRODUTO']).trim()
+      const classeRaw = String(row['CLASSIFICACAO'] ?? '').toLowerCase().trim()
+      const classeNorm = CLASSE_MAP[classeRaw] ?? CLASSE_MAP[classeRaw.replace(/ /g,'_')] ?? 'outro'
+      const unidRaw  = String(row['UNIDADE'] ?? '').toUpperCase().trim()
+      const unidade  = ['LT','L','GL'].includes(unidRaw) ? 'L' : 'kg'
       const localRaw = String(row['LOCAL_ARMAZENAMENTO'] ?? '').toLowerCase().replace(/ \//g,'_').replace(/\//g,'_')
       const local = localValidos.includes(localRaw) ? localRaw : null
       const estAtual = Number(row['ESTOQUE_ATUAL'] ?? 0)
