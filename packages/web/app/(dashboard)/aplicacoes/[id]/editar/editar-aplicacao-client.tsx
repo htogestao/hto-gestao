@@ -311,7 +311,12 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-medium">Qtd Usada *</label>
+                  <label className="text-xs font-medium">Dose/ha</label>
+                  <Input type="number" step="0.001" placeholder="0.000" className="mt-1"
+                    value={it.dose_por_hectare} onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Qtd Retirada *</label>
                   <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
                     value={it.quantidade_usada} onChange={e => atualizarItem(i, 'quantidade_usada', e.target.value)} />
                 </div>
@@ -319,11 +324,6 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
                   <label className="text-xs font-medium">Qtd Sobrou</label>
                   <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
                     value={it.quantidade_sobrou} onChange={e => atualizarItem(i, 'quantidade_sobrou', e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium">Dose/ha</label>
-                  <Input type="number" step="0.001" placeholder="0.000" className="mt-1"
-                    value={it.dose_por_hectare} onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)} />
                 </div>
                 <div>
                   <label className="text-xs font-medium">Calda total (L)</label>
