@@ -14,15 +14,16 @@ interface Defensivo { id: string; nome_comercial: string; unidade: string }
 interface Lote      { id: string; numero_nf: string | null; defensivo_id: string; quantidade_atual: number }
 
 interface Item {
-  defensivo_id:     string
-  lote_id:          string
-  dose_por_hectare: string
+  defensivo_id:      string
+  lote_id:           string
+  dose_por_hectare:  string
+  qtd_retirada:      string   // sobrescreve o cálculo automático se preenchido
   quantidade_sobrou: string
 }
 
 const ITEM_VAZIO: Item = {
   defensivo_id: '', lote_id: '',
-  dose_por_hectare: '', quantidade_sobrou: '0',
+  dose_por_hectare: '', qtd_retirada: '', quantidade_sobrou: '0',
 }
 
 export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, userId }: {
@@ -113,16 +114,21 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
       const { error: errVinc } = await supabase.from('aplicacao_talhoes').insert(vinculos)
       if (errVinc) throw errVinc
 
-      // ── 3. Salva itens com QUANTIDADE TOTAL (dose × área total) ───────
-      const itensSalvar = itens.map(it => ({
-        aplicacao_id:     aplic!.id,
-        defensivo_id:     it.defensivo_id,
-        lote_id:          it.lote_id || null,
-        dose_por_hectare: parseFloat(it.dose_por_hectare),
-        quantidade_usada: parseFloat(it.dose_por_hectare) * (areaTotal || 1),
-        quantidade_sobrou: parseFloat(it.quantidade_sobrou) || 0,
-        calda_total_l:    vazao && areaTotal ? parseFloat(vazao) * areaTotal : null,
-      }))
+      // ── 3. Salva itens — usa qtd_retirada manual ou calcula dose × área ─
+      const itensSalvar = itens.map(it => {
+        const doseNum = parseFloat(it.dose_por_hectare) || 0
+        const qtdAuto = doseNum * (areaTotal || 1)
+        const qtdFinal = it.qtd_retirada ? parseFloat(it.qtd_retirada) : qtdAuto
+        return {
+          aplicacao_id:     aplic!.id,
+          defensivo_id:     it.defensivo_id,
+          lote_id:          it.lote_id || null,
+          dose_por_hectare: doseNum || null,
+          quantidade_usada: qtdFinal,
+          quantidade_sobrou: parseFloat(it.quantidade_sobrou) || 0,
+          calda_total_l:    vazao && areaTotal ? parseFloat(vazao) * areaTotal : null,
+        }
+      })
 
       const { error: errItens } = await supabase.from('aplicacao_itens').insert(itensSalvar)
       if (errItens) throw errItens
@@ -348,11 +354,28 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs font-medium">
-                      Dose/ha ({def?.unidade ?? 'L'}/ha) *
+                      Dose/ha ({def?.unidade ?? 'L'}/ha)
                     </label>
                     <Input type="number" step="0.001" placeholder="0.000" className="mt-1"
                       value={it.dose_por_hectare}
-                      onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)} />
+                      onChange={e => {
+                        atualizarItem(i, 'dose_por_hectare', e.target.value)
+                        // Limpa qtd manual ao alterar dose para recalcular
+                        if (it.qtd_retirada === '') atualizarItem(i, 'qtd_retirada', '')
+                      }} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">
+                      Qtd retirada ({def?.unidade ?? 'L'}) *
+                    </label>
+                    <Input
+                      type="number" step="0.01" className="mt-1"
+                      placeholder={doseNum > 0 && areaTotal > 0
+                        ? `≈ ${formatarNumero(doseNum * areaTotal, 2)}`
+                        : '0.00'}
+                      value={it.qtd_retirada}
+                      onChange={e => atualizarItem(i, 'qtd_retirada', e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-medium">Sobrou ({def?.unidade ?? 'L'})</label>

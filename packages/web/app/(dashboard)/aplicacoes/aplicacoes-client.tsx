@@ -155,13 +155,11 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
                       {formatarNumero(a.itens.reduce((s,i) => s + i.quantidade_usada, 0), 1)} unid. total
                     </p>
                   </div>
-                  {isAdmin && (
-                    <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
-                      <Button variant="ghost" size="sm" className="shrink-0">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </Link>
-                  )}
+                  <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="sm" className="shrink-0">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
                   {podeExcluir && (
                     <Button
                       variant="ghost" size="sm"
