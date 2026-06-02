@@ -14,9 +14,9 @@ interface Defensivo { id: string; nome_comercial: string; unidade: string }
 interface Lote      { id: string; numero_nf: string | null; defensivo_id: string; quantidade_atual: number }
 
 interface Item {
-  defensivo_id:    string
-  lote_id:         string
-  dose_por_hectare: string   // L/ha ou kg/ha — campo principal
+  defensivo_id:     string
+  lote_id:          string
+  dose_por_hectare: string
   quantidade_sobrou: string
 }
 
@@ -32,17 +32,17 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
   const supabase = createClient()
   const router   = useRouter()
 
-  const [fazendaId,    setFazendaId]   = useState('')
-  const [talhoesSel,   setTalhoesSel]  = useState<string[]>([])
-  const [data,         setData]        = useState(new Date().toISOString().split('T')[0])
-  const [praga,        setPraga]       = useState('')
-  const [clima,        setClima]       = useState('')
-  const [obs,          setObs]         = useState('')
-  const [vazao,        setVazao]       = useState('')   // L/ha da calda
-  const [status,       setStatus]      = useState<'em_andamento' | 'encerrada'>('encerrada')
-  const [itens,        setItens]       = useState<Item[]>([{ ...ITEM_VAZIO }])
-  const [salvando,     setSalvando]    = useState(false)
-  const [erro,         setErro]        = useState('')
+  const [fazendaId,  setFazendaId]  = useState('')
+  const [talhoesSel, setTalhoesSel] = useState<string[]>([])
+  const [data,       setData]       = useState(new Date().toISOString().split('T')[0])
+  const [praga,      setPraga]      = useState('')
+  const [clima,      setClima]      = useState('')
+  const [obs,        setObs]        = useState('')
+  const [vazao,      setVazao]      = useState('')
+  const [status,     setStatus]     = useState<'em_andamento' | 'encerrada'>('encerrada')
+  const [itens,      setItens]      = useState<Item[]>([{ ...ITEM_VAZIO }])
+  const [salvando,   setSalvando]   = useState(false)
+  const [erro,       setErro]       = useState('')
 
   const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
 
@@ -84,42 +84,48 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
     setErro(''); setSalvando(true)
 
     try {
-      // Cria uma aplicação por talhão selecionado
-      for (const talhaoId of talhoesSel) {
-        const talhao = talhoesFazenda.find(t => t.id === talhaoId)!
-        const areaHa = talhao.area_ha ?? 0
+      // ── 1. Cria UMA aplicação com área total ─────────────────────────
+      const { data: aplic, error: errAplic } = await supabase
+        .from('aplicacoes')
+        .insert({
+          fazenda_id:           fazendaId,
+          talhao_id:            talhoesSel[0],   // talhão principal (para compatibilidade)
+          data,
+          status,
+          area_aplicada_ha:     areaTotal || null,
+          praga_alvo:           praga || null,
+          condicoes_climaticas: clima || null,
+          observacoes:          obs || null,
+          responsavel_id:       userId,
+          vazao_l_ha:           vazao ? parseFloat(vazao) : null,
+        })
+        .select('id').single()
 
-        const { data: aplic, error: errAplic } = await supabase
-          .from('aplicacoes')
-          .insert({
-            fazenda_id:          fazendaId,
-            talhao_id:           talhaoId,
-            data,
-            status,
-            area_aplicada_ha:    areaHa || null,
-            praga_alvo:          praga || null,
-            condicoes_climaticas: clima || null,
-            observacoes:         obs || null,
-            responsavel_id:      userId,
-            vazao_l_ha:          vazao ? parseFloat(vazao) : null,
-          })
-          .select('id').single()
+      if (errAplic) throw errAplic
 
-        if (errAplic) throw errAplic
+      // ── 2. Vincula TODOS os talhões selecionados ──────────────────────
+      const vinculos = talhoesSel.map(talhaoId => ({
+        aplicacao_id: aplic!.id,
+        talhao_id:    talhaoId,
+        area_ha:      talhoesFazenda.find(t => t.id === talhaoId)?.area_ha ?? null,
+      }))
 
-        const itensSalvar = itens.map(it => ({
-          aplicacao_id:     aplic!.id,
-          defensivo_id:     it.defensivo_id,
-          lote_id:          it.lote_id || null,
-          dose_por_hectare: parseFloat(it.dose_por_hectare),
-          quantidade_usada: parseFloat(it.dose_por_hectare) * (areaHa || 1),
-          quantidade_sobrou: parseFloat(it.quantidade_sobrou) || 0,
-          calda_total_l:    vazao && areaHa ? parseFloat(vazao) * areaHa : null,
-        }))
+      const { error: errVinc } = await supabase.from('aplicacao_talhoes').insert(vinculos)
+      if (errVinc) throw errVinc
 
-        const { error: errItens } = await supabase.from('aplicacao_itens').insert(itensSalvar)
-        if (errItens) throw errItens
-      }
+      // ── 3. Salva itens com QUANTIDADE TOTAL (dose × área total) ───────
+      const itensSalvar = itens.map(it => ({
+        aplicacao_id:     aplic!.id,
+        defensivo_id:     it.defensivo_id,
+        lote_id:          it.lote_id || null,
+        dose_por_hectare: parseFloat(it.dose_por_hectare),
+        quantidade_usada: parseFloat(it.dose_por_hectare) * (areaTotal || 1),
+        quantidade_sobrou: parseFloat(it.quantidade_sobrou) || 0,
+        calda_total_l:    vazao && areaTotal ? parseFloat(vazao) * areaTotal : null,
+      }))
+
+      const { error: errItens } = await supabase.from('aplicacao_itens').insert(itensSalvar)
+      if (errItens) throw errItens
 
       router.push('/aplicacoes')
     } catch (e: any) {
@@ -131,7 +137,7 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
 
   return (
     <div className="p-4 space-y-4 max-w-2xl mx-auto pb-10">
-      {/* Cabeçalho */}
+
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-5 w-5" />
@@ -143,13 +149,12 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{erro}</div>
       )}
 
-      {/* CARD 1 — Fazenda + Talhões */}
+      {/* ── CARD 1: Fazenda + Talhões ── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">1. Fazenda e Talhões</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Fazenda */}
           <div>
             <label className="text-sm font-medium">Fazenda *</label>
             <select
@@ -162,18 +167,14 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
             </select>
           </div>
 
-          {/* Talhões (checkboxes) */}
           {fazendaId && talhoesFazenda.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium">
-                  Talhões * <span className="font-normal text-muted-foreground">(selecione um ou mais)</span>
+                  Talhões *
+                  <span className="font-normal text-muted-foreground ml-1">(pode selecionar vários)</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={toggleTodos}
-                  className="text-xs text-primary hover:underline"
-                >
+                <button type="button" onClick={toggleTodos} className="text-xs text-primary hover:underline">
                   {talhoesSel.length === talhoesFazenda.length ? 'Desmarcar todos' : 'Selecionar todos'}
                 </button>
               </div>
@@ -204,7 +205,7 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
               {talhoesSel.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
                   <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-medium">
-                    {talhoesSel.length} talhão(ões) selecionado(s)
+                    {talhoesSel.length} talhão(ões)
                   </span>
                   {areaTotal > 0 && (
                     <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
@@ -222,7 +223,7 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
         </CardContent>
       </Card>
 
-      {/* CARD 2 — Dados da Aplicação */}
+      {/* ── CARD 2: Dados da Aplicação ── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">2. Dados da Aplicação</CardTitle>
@@ -240,10 +241,9 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
               </label>
               <Input
                 type="number" step="1" min="0"
-                placeholder="Ex: 100, 150, 300..."
+                placeholder="Ex: 100, 150, 300"
                 className="mt-1"
-                value={vazao}
-                onChange={e => setVazao(e.target.value)}
+                value={vazao} onChange={e => setVazao(e.target.value)}
               />
             </div>
           </div>
@@ -261,31 +261,25 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
 
           <div>
             <label className="text-sm font-medium">Praga / Alvo</label>
-            <Input
-              className="mt-1" placeholder="Ex: Cigarrinha, Broca, Ferrugem..."
-              value={praga} onChange={e => setPraga(e.target.value)}
-            />
+            <Input className="mt-1" placeholder="Ex: Cigarrinha, Broca, Ferrugem..."
+              value={praga} onChange={e => setPraga(e.target.value)} />
           </div>
 
           <div>
             <label className="text-sm font-medium">Condições Climáticas</label>
-            <Input
-              className="mt-1" placeholder="Ex: Céu limpo, vento fraco, umidade 70%..."
-              value={clima} onChange={e => setClima(e.target.value)}
-            />
+            <Input className="mt-1" placeholder="Ex: Céu limpo, vento fraco, umidade 70%..."
+              value={clima} onChange={e => setClima(e.target.value)} />
           </div>
 
           <div>
             <label className="text-sm font-medium">Observações</label>
-            <Input
-              className="mt-1" placeholder="Observações adicionais..."
-              value={obs} onChange={e => setObs(e.target.value)}
-            />
+            <Input className="mt-1" placeholder="Observações adicionais..."
+              value={obs} onChange={e => setObs(e.target.value)} />
           </div>
         </CardContent>
       </Card>
 
-      {/* CARD 3 — Defensivos */}
+      {/* ── CARD 3: Defensivos ── */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -293,7 +287,7 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
               <CardTitle className="text-sm">3. Defensivos Utilizados</CardTitle>
               {areaTotal > 0 && (
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Informe a dose/ha — a quantidade total é calculada automaticamente
+                  Quantidade total = dose/ha × {formatarNumero(areaTotal, 2)} ha
                 </p>
               )}
             </div>
@@ -304,15 +298,14 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
         </CardHeader>
         <CardContent className="space-y-4">
           {itens.map((it, i) => {
-            const def      = defensivos.find(d => d.id === it.defensivo_id)
-            const doseNum  = parseFloat(it.dose_por_hectare) || 0
-            const qtdTotal = doseNum * areaTotal
+            const def     = defensivos.find(d => d.id === it.defensivo_id)
+            const doseNum = parseFloat(it.dose_por_hectare) || 0
+            const qtdTot  = doseNum * areaTotal
 
             return (
               <div key={i} className="space-y-2 border rounded-md p-3 relative">
                 {itens.length > 1 && (
-                  <button
-                    type="button"
+                  <button type="button"
                     onClick={() => setItens(prev => prev.filter((_, idx) => idx !== i))}
                     className="absolute top-2 right-2 text-red-400 hover:text-red-600"
                   >
@@ -320,7 +313,6 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
                   </button>
                 )}
 
-                {/* Defensivo */}
                 <div>
                   <label className="text-xs font-medium">Defensivo *</label>
                   <select
@@ -335,7 +327,6 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
                   </select>
                 </div>
 
-                {/* Lote */}
                 {it.defensivo_id && lotesDoDefensivo(it.defensivo_id).length > 0 && (
                   <div>
                     <label className="text-xs font-medium">Lote / NF</label>
@@ -354,50 +345,33 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
                   </div>
                 )}
 
-                {/* Dose/ha + Sobrou */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs font-medium">
                       Dose/ha ({def?.unidade ?? 'L'}/ha) *
                     </label>
-                    <Input
-                      type="number" step="0.001" placeholder="0.000" className="mt-1"
+                    <Input type="number" step="0.001" placeholder="0.000" className="mt-1"
                       value={it.dose_por_hectare}
-                      onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)}
-                    />
+                      onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)} />
                   </div>
                   <div>
                     <label className="text-xs font-medium">Sobrou ({def?.unidade ?? 'L'})</label>
-                    <Input
-                      type="number" step="0.01" placeholder="0.00" className="mt-1"
+                    <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
                       value={it.quantidade_sobrou}
-                      onChange={e => atualizarItem(i, 'quantidade_sobrou', e.target.value)}
-                    />
+                      onChange={e => atualizarItem(i, 'quantidade_sobrou', e.target.value)} />
                   </div>
                 </div>
 
-                {/* Preview de quantidades por talhão */}
-                {qtdTotal > 0 && talhoesSel.length > 0 && (
+                {/* Preview total */}
+                {qtdTot > 0 && talhoesSel.length > 0 && (
                   <div className="bg-blue-50 border border-blue-100 rounded px-3 py-2 text-xs text-blue-800 space-y-1">
-                    <div className="font-medium">
-                      Total estimado: {formatarNumero(qtdTotal, 2)} {def?.unidade}
+                    <div className="font-semibold">
+                      Total: {formatarNumero(qtdTot, 2)} {def?.unidade}
+                      {talhoesSel.length > 1 && ` · ${talhoesSel.length} talhões · ${formatarNumero(areaTotal, 2)} ha`}
                     </div>
-                    {talhoesSel.length > 1 && (
-                      <div className="text-blue-600 space-y-0.5">
-                        {talhoesInfo.map(t => (
-                          <div key={t.id} className="flex justify-between">
-                            <span>{t.nome}</span>
-                            <span className="font-medium">
-                              {formatarNumero(doseNum * (t.area_ha ?? 0), 2)} {def?.unidade}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                     {vazao && areaTotal > 0 && (
-                      <div className="text-blue-600 pt-0.5 border-t border-blue-200">
+                      <div className="text-blue-600">
                         Calda total: {formatarNumero(parseFloat(vazao) * areaTotal, 0)} L
-                        {talhoesSel.length > 1 && ` (${formatarNumero(parseFloat(vazao) * (talhoesInfo[0]?.area_ha ?? 0), 0)}–${formatarNumero(parseFloat(vazao) * (talhoesInfo[talhoesInfo.length-1]?.area_ha ?? 0), 0)} L por talhão)`}
                       </div>
                     )}
                   </div>
@@ -409,11 +383,7 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
       </Card>
 
       <Button className="w-full" size="lg" onClick={salvar} disabled={salvando}>
-        {salvando
-          ? 'Salvando...'
-          : talhoesSel.length > 1
-            ? `Salvar ${talhoesSel.length} Aplicações (1 por talhão)`
-            : 'Salvar Aplicação'}
+        {salvando ? 'Salvando...' : 'Salvar Aplicação'}
       </Button>
     </div>
   )
