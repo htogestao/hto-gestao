@@ -1,11 +1,13 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatarData, formatarNumero, cn } from '@/lib/utils'
-import { Search, Tractor, ChevronDown, ChevronRight, Plus, Pencil } from 'lucide-react'
+import { Search, Tractor, ChevronDown, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface AplicacaoItem {
@@ -28,10 +30,16 @@ interface Aplicacao {
   itens: AplicacaoItem[]
 }
 
-export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]; role: string }) {
-  const [busca, setBusca]         = useState('')
-  const [filtroStatus, setFiltro] = useState('todos')
-  const [expandidas, setExp]      = useState<Set<string>>(new Set())
+export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Aplicacao[]; role: string }) {
+  const supabase = createClient()
+  const router   = useRouter()
+  const isAdmin  = role === 'admin'
+
+  const [aplicacoes,   setAplicacoes] = useState(inicial)
+  const [busca,        setBusca]      = useState('')
+  const [filtroStatus, setFiltro]     = useState('todos')
+  const [expandidas,   setExp]        = useState<Set<string>>(new Set())
+  const [deletandoId,  setDeletando]  = useState<string | null>(null)
 
   function getTalhoes(a: Aplicacao): TalhaoInfo[] {
     if (a.talhoes_vinculados?.length > 0)
@@ -53,6 +61,14 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
 
   function toggle(id: string) {
     setExp(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  async function excluir(id: string) {
+    if (!confirm('Excluir esta aplicação? Esta ação não pode ser desfeita.')) return
+    setDeletando(id)
+    await supabase.from('aplicacoes').delete().eq('id', id)
+    setAplicacoes(prev => prev.filter(a => a.id !== id))
+    setDeletando(null)
   }
 
   return (
@@ -131,18 +147,30 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right text-sm">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right text-sm mr-1">
                     <p className="font-medium">{a.itens.length} defensivo(s)</p>
                     <p className="text-xs text-muted-foreground">
                       {formatarNumero(a.itens.reduce((s,i) => s + i.quantidade_usada, 0), 1)} unid. total
                     </p>
                   </div>
-                  <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
-                    <Button variant="ghost" size="sm" className="shrink-0">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  </Link>
+                  {isAdmin && (
+                    <>
+                      <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" className="shrink-0">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost" size="sm"
+                        disabled={deletandoId === a.id}
+                        onClick={e => { e.stopPropagation(); excluir(a.id) }}
+                        className="shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
                   {aberta ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                 </div>
               </div>
