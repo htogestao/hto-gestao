@@ -34,6 +34,7 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
   const supabase = createClient()
   const router   = useRouter()
   const isAdmin  = role === 'admin'
+  const podeExcluir = role === 'admin' || role === 'viewer'
 
   const [aplicacoes,   setAplicacoes] = useState(inicial)
   const [busca,        setBusca]      = useState('')
@@ -155,21 +156,21 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
                     </p>
                   </div>
                   {isAdmin && (
-                    <>
-                      <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" className="shrink-0">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost" size="sm"
-                        disabled={deletandoId === a.id}
-                        onClick={e => { e.stopPropagation(); excluir(a.id) }}
-                        className="shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
+                    <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" className="shrink-0">
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                    </>
+                    </Link>
+                  )}
+                  {podeExcluir && (
+                    <Button
+                      variant="ghost" size="sm"
+                      disabled={deletandoId === a.id}
+                      onClick={e => { e.stopPropagation(); excluir(a.id) }}
+                      className="shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   )}
                   {aberta ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                 </div>
