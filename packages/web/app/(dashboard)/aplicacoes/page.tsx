@@ -12,9 +12,12 @@ export default async function AplicacoesPage() {
     .from('aplicacoes')
     .select(`
       id, data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas,
-      observacoes, created_at,
+      observacoes, created_at, vazao_l_ha,
       fazenda:fazendas(id, nome),
       talhao:talhoes(id, nome, area_ha),
+      talhoes_vinculados:aplicacao_talhoes(
+        talhao:talhoes(id, nome, area_ha)
+      ),
       responsavel:profiles(id, nome),
       itens:aplicacao_itens(
         id, quantidade_usada, quantidade_sobrou, dose_por_hectare, calda_total_l,

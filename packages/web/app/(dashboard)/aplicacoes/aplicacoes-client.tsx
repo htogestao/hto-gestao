@@ -15,11 +15,15 @@ interface AplicacaoItem {
   lote: { id: string; numero_nf: string | null; data_vencimento: string | null } | null
 }
 
+interface TalhaoInfo { id: string; nome: string; area_ha: number | null }
+
 interface Aplicacao {
   id: string; data: string; status: string; area_aplicada_ha: number | null
-  praga_alvo: string | null; condicoes_climaticas: string | null; observacoes: string | null
+  praga_alvo: string | null; condicoes_climaticas: string | null
+  observacoes: string | null; vazao_l_ha: number | null
   fazenda: { id: string; nome: string } | null
-  talhao: { id: string; nome: string; area_ha: number | null } | null
+  talhao: TalhaoInfo | null
+  talhoes_vinculados: { talhao: TalhaoInfo | null }[]
   responsavel: { id: string; nome: string } | null
   itens: AplicacaoItem[]
 }
@@ -29,11 +33,18 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
   const [filtroStatus, setFiltro] = useState('todos')
   const [expandidas, setExp]      = useState<Set<string>>(new Set())
 
+  function getTalhoes(a: Aplicacao): TalhaoInfo[] {
+    if (a.talhoes_vinculados?.length > 0)
+      return a.talhoes_vinculados.map(v => v.talhao).filter(Boolean) as TalhaoInfo[]
+    return a.talhao ? [a.talhao] : []
+  }
+
   const filtradas = aplicacoes.filter(a => {
+    const tals = getTalhoes(a)
     const matchBusca = !busca ||
       (a.fazenda?.nome ?? '').toLowerCase().includes(busca.toLowerCase()) ||
-      (a.talhao?.nome  ?? '').toLowerCase().includes(busca.toLowerCase()) ||
-      (a.praga_alvo    ?? '').toLowerCase().includes(busca.toLowerCase())
+      tals.some(t => t.nome.toLowerCase().includes(busca.toLowerCase())) ||
+      (a.praga_alvo ?? '').toLowerCase().includes(busca.toLowerCase())
     const matchStatus = filtroStatus === 'todos' || a.status === filtroStatus
     return matchBusca && matchStatus
   })
@@ -80,7 +91,12 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
 
       <div className="space-y-2">
         {filtradas.map(a => {
-          const aberta = expandidas.has(a.id)
+          const aberta  = expandidas.has(a.id)
+          const tals    = getTalhoes(a)
+          const talLabel = tals.length === 0 ? '—'
+            : tals.length === 1 ? tals[0].nome
+            : `${tals.length} talhões`
+
           return (
             <Card key={a.id} className={cn(
               'overflow-hidden',
@@ -101,7 +117,7 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold">{a.fazenda?.nome ?? '—'}</p>
                     <span className="text-muted-foreground">·</span>
-                    <p className="text-sm">{a.talhao?.nome ?? '—'}</p>
+                    <p className="text-sm">{talLabel}</p>
                     {a.status === 'em_andamento'
                       ? <Badge variant="info">Em Andamento</Badge>
                       : <Badge variant="success">Encerrada</Badge>}
@@ -109,6 +125,7 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {formatarData(a.data)}
                     {a.area_aplicada_ha && ` · ${formatarNumero(a.area_aplicada_ha, 1)} ha`}
+                    {a.vazao_l_ha && ` · ${a.vazao_l_ha} L/ha`}
                     {a.praga_alvo && ` · ${a.praga_alvo}`}
                     {a.responsavel && ` · ${a.responsavel.nome}`}
                   </p>
@@ -132,6 +149,16 @@ export function AplicacoesClient({ aplicacoes, role }: { aplicacoes: Aplicacao[]
 
               {aberta && (
                 <div className="border-t bg-muted/10 p-4 space-y-3">
+                  {/* Talhões detalhados (multi-talhão) */}
+                  {tals.length > 1 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {tals.map(t => (
+                        <span key={t.id} className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                          {t.nome}{t.area_ha ? ` · ${t.area_ha} ha` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {a.condicoes_climaticas && (
                     <p className="text-sm text-muted-foreground">🌡️ {a.condicoes_climaticas}</p>
                   )}
