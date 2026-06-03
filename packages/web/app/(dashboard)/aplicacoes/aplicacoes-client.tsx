@@ -34,7 +34,7 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
   const supabase = createClient()
   const router   = useRouter()
   const isAdmin  = role === 'admin'
-  const podeExcluir = role === 'admin' || role === 'viewer'
+  const podeExcluir = true // admin, viewer e field podem excluir (field só as próprias, via RLS)
 
   const [aplicacoes,   setAplicacoes] = useState(inicial)
   const [busca,        setBusca]      = useState('')
