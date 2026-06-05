@@ -1,11 +1,12 @@
 'use client'
 import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { formatarData, formatarMoeda, formatarNumero, diasParaVencer, statusVencimentoBadge, cn } from '@/lib/utils'
-import { Plus, Search, ChevronDown, ChevronRight, Package, AlertTriangle } from 'lucide-react'
+import { Plus, Search, ChevronDown, ChevronRight, Package, AlertTriangle, Pencil, X, Check } from 'lucide-react'
 import Link from 'next/link'
 
 interface EstoqueRow {
@@ -33,36 +34,77 @@ const CLASSE_CORES: Record<string, string> = {
   nematicida: 'bg-pink-100 text-pink-800',
 }
 
-export function EstoqueTable({ estoque, lotes, role }: {
+export function EstoqueTable({ estoque: inicial, lotes: lotesIniciais, role }: {
   estoque: EstoqueRow[]; lotes: LoteRow[]; role: string
 }) {
-  const isAdmin = role === 'admin'
-  const [busca, setBusca] = useState('')
-  const [filtroClasse, setFiltroClasse] = useState('todos')
-  const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
+  const supabase  = createClient()
+  const canEdit   = role === 'admin' || role === 'viewer'
+  const isAdmin   = role === 'admin'
+
+  const [estoque,        setEstoque]      = useState(inicial)
+  const [lotes,          setLotes]        = useState(lotesIniciais)
+  const [busca,          setBusca]        = useState('')
+  const [filtroClasse,   setFiltroClasse] = useState('todos')
+  const [expandidos,     setExpandidos]   = useState<Set<string>>(new Set())
   const [somenteAlertas, setSomenteAlertas] = useState(false)
+
+  // Estado do modal de edição de lote
+  const [editando,    setEditando]    = useState<LoteRow | null>(null)
+  const [novaQtd,     setNovaQtd]    = useState('')
+  const [novaObs,     setNovaObs]    = useState('')
+  const [salvandoLote, setSalvandoLote] = useState(false)
+  const [erroLote,    setErroLote]   = useState('')
 
   const classes = ['todos', ...Array.from(new Set(estoque.map(e => e.classe))).sort()]
 
   const filtrado = estoque.filter(e => {
-    const matchBusca = !busca ||
-      e.nome_comercial.toLowerCase().includes(busca.toLowerCase()) ||
-      e.principio_ativo.toLowerCase().includes(busca.toLowerCase())
+    const matchBusca  = !busca || e.nome_comercial.toLowerCase().includes(busca.toLowerCase()) || e.principio_ativo.toLowerCase().includes(busca.toLowerCase())
     const matchClasse = filtroClasse === 'todos' || e.classe === filtroClasse
     const matchAlerta = !somenteAlertas || e.em_alerta || e.tem_vencido
     return matchBusca && matchClasse && matchAlerta
   })
 
   function toggleExpand(id: string) {
-    setExpandidos(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
+    setExpandidos(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
   function lotesDoDefensivo(defId: string) {
     return lotes.filter(l => l.defensivo?.id === defId)
+  }
+
+  function abrirEdicao(l: LoteRow) {
+    setEditando(l)
+    setNovaQtd(String(l.quantidade_atual))
+    setNovaObs(l.observacoes ?? '')
+    setErroLote('')
+  }
+
+  async function salvarLote() {
+    if (!editando) return
+    const qtd = parseFloat(novaQtd)
+    if (isNaN(qtd) || qtd < 0) { setErroLote('Quantidade inválida.'); return }
+    setSalvandoLote(true)
+    const { error } = await supabase
+      .from('lotes')
+      .update({ quantidade_atual: qtd, observacoes: novaObs || null })
+      .eq('id', editando.id)
+    if (error) { setErroLote(error.message); setSalvandoLote(false); return }
+
+    // Atualiza lotes localmente
+    setLotes(prev => prev.map(l => l.id === editando.id
+      ? { ...l, quantidade_atual: qtd, observacoes: novaObs || null }
+      : l
+    ))
+    // Recalcula totais localmente
+    setEstoque(prev => prev.map(e => {
+      if (e.defensivo_id !== editando.defensivo?.id) return e
+      const lotesD = lotes.map(l => l.id === editando.id ? { ...l, quantidade_atual: qtd } : l)
+        .filter(l => l.defensivo?.id === e.defensivo_id)
+      const total = lotesD.reduce((s, l) => s + l.quantidade_atual, 0)
+      return { ...e, quantidade_total: total, em_alerta: total <= e.estoque_minimo }
+    }))
+    setSalvandoLote(false)
+    setEditando(null)
   }
 
   const alertasCount = estoque.filter(e => e.em_alerta || e.tem_vencido).length
@@ -77,11 +119,10 @@ export function EstoqueTable({ estoque, lotes, role }: {
             {estoque.length} defensivos · {lotes.length} lotes
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button asChild>
             <Link href="/compras">
-              <Plus className="h-4 w-4" />
-              Nova Entrada
+              <Plus className="h-4 w-4 mr-1" />Nova Entrada
             </Link>
           </Button>
         )}
@@ -93,22 +134,15 @@ export function EstoqueTable({ estoque, lotes, role }: {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar defensivo..." className="pl-8" value={busca} onChange={e => setBusca(e.target.value)} />
         </div>
-        <select
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          value={filtroClasse}
-          onChange={e => setFiltroClasse(e.target.value)}
-        >
+        <select className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={filtroClasse} onChange={e => setFiltroClasse(e.target.value)}>
           {classes.map(c => (
             <option key={c} value={c}>{c === 'todos' ? 'Todas as classes' : c.replace(/_/g, ' ')}</option>
           ))}
         </select>
-        <Button
-          variant={somenteAlertas ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setSomenteAlertas(!somenteAlertas)}
-        >
-          <AlertTriangle className="h-4 w-4 mr-1" />
-          Alertas ({alertasCount})
+        <Button variant={somenteAlertas ? 'default' : 'outline'} size="sm"
+          onClick={() => setSomenteAlertas(!somenteAlertas)}>
+          <AlertTriangle className="h-4 w-4 mr-1" />Alertas ({alertasCount})
         </Button>
       </div>
 
@@ -127,27 +161,21 @@ export function EstoqueTable({ estoque, lotes, role }: {
                   <th className="text-right p-3 font-medium">Qtd Total</th>
                   <th className="text-right p-3 font-medium">Mínimo</th>
                   <th className="text-center p-3 font-medium">Status</th>
-                  {isAdmin && <th className="text-center p-3 font-medium">Ações</th>}
                 </tr>
               </thead>
               <tbody>
                 {filtrado.map(e => {
-                  const lotesD  = lotesDoDefensivo(e.defensivo_id)
-                  const aberto  = expandidos.has(e.defensivo_id)
+                  const lotesD = lotesDoDefensivo(e.defensivo_id)
+                  const aberto = expandidos.has(e.defensivo_id)
                   return (
                     <>
-                      <tr
-                        key={e.defensivo_id}
-                        className={cn(
-                          'border-b hover:bg-muted/20 cursor-pointer transition-colors',
-                          (e.em_alerta || e.tem_vencido) && 'bg-red-50/40'
-                        )}
+                      <tr key={e.defensivo_id}
+                        className={cn('border-b hover:bg-muted/20 cursor-pointer transition-colors',
+                          (e.em_alerta || e.tem_vencido) && 'bg-red-50/40')}
                         onClick={() => toggleExpand(e.defensivo_id)}
                       >
                         <td className="p-3 text-muted-foreground">
-                          {aberto
-                            ? <ChevronDown className="h-4 w-4" />
-                            : <ChevronRight className="h-4 w-4" />}
+                          {aberto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </td>
                         <td className="p-3">
                           <p className="font-medium">{e.nome_comercial}</p>
@@ -160,9 +188,7 @@ export function EstoqueTable({ estoque, lotes, role }: {
                           </span>
                         </td>
                         <td className="p-3 text-muted-foreground">{e.empresa ?? '—'}</td>
-                        <td className="p-3 text-muted-foreground capitalize">
-                          {e.local_armazenamento?.replace(/_/g,'/') ?? '—'}
-                        </td>
+                        <td className="p-3 text-muted-foreground capitalize">{e.local_armazenamento?.replace(/_/g,'/') ?? '—'}</td>
                         <td className="p-3 text-right font-mono font-semibold">
                           {formatarNumero(e.quantidade_total, 1)} {e.unidade}
                         </td>
@@ -176,18 +202,11 @@ export function EstoqueTable({ estoque, lotes, role }: {
                             ? <Badge variant="warning">Estoque Baixo</Badge>
                             : <Badge variant="success">OK</Badge>}
                         </td>
-                        {isAdmin && (
-                          <td className="p-3 text-center" onClick={ev => ev.stopPropagation()}>
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link href={`/defensivos`}>Editar</Link>
-                            </Button>
-                          </td>
-                        )}
                       </tr>
 
                       {/* Lotes expandidos */}
                       {aberto && lotesD.map(l => {
-                        const dias  = diasParaVencer(l.data_vencimento)
+                        const dias = diasParaVencer(l.data_vencimento)
                         return (
                           <tr key={l.id} className="border-b bg-muted/10 text-xs">
                             <td className="p-2 pl-8" colSpan={2}>
@@ -199,12 +218,10 @@ export function EstoqueTable({ estoque, lotes, role }: {
                               {l.fornecedor && <p className="text-muted-foreground mt-0.5 pl-5">{l.fornecedor}</p>}
                               {l.observacoes && <p className="text-muted-foreground mt-0.5 pl-5 italic">{l.observacoes}</p>}
                             </td>
-                            <td className="p-2 text-muted-foreground">
-                              {l.data_compra ? formatarData(l.data_compra) : '—'}
-                            </td>
+                            <td className="p-2 text-muted-foreground">{l.data_compra ? formatarData(l.data_compra) : '—'}</td>
                             <td className="p-2 text-muted-foreground">{l.fornecedor ?? '—'}</td>
                             <td />
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-2 text-right font-mono font-semibold">
                               {formatarNumero(l.quantidade_atual, 1)} {l.defensivo?.unidade}
                             </td>
                             <td className="p-2 text-right text-muted-foreground font-mono">
@@ -213,30 +230,44 @@ export function EstoqueTable({ estoque, lotes, role }: {
                             <td className="p-2 text-center">
                               {l.data_vencimento ? (
                                 <span className={cn('px-2 py-0.5 rounded-full text-xs', statusVencimentoBadge(dias))}>
-                                  {dias !== null && dias < 0
-                                    ? `Vencido ${Math.abs(dias)}d atrás`
-                                    : dias !== null
-                                    ? `Vence em ${dias}d`
+                                  {dias !== null && dias < 0 ? `Vencido ${Math.abs(dias)}d atrás`
+                                    : dias !== null ? `Vence em ${dias}d`
                                     : formatarData(l.data_vencimento)}
                                 </span>
                               ) : <span className="text-muted-foreground">Sem vencimento</span>}
+                              {/* Botão editar lote */}
+                              {canEdit && (
+                                <button
+                                  onClick={ev => { ev.stopPropagation(); abrirEdicao(l) }}
+                                  className="ml-2 text-muted-foreground hover:text-primary inline-flex items-center"
+                                  title="Corrigir quantidade"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                              )}
                             </td>
-                            {isAdmin && (
-                              <td className="p-2 text-center">
-                                <span className="font-semibold text-primary">{formatarMoeda(l.valor_total)}</span>
-                                <div className="text-muted-foreground">{formatarMoeda(l.preco_unitario)}/{l.defensivo?.unidade}</div>
-                              </td>
-                            )}
                           </tr>
                         )
                       })}
+
+                      {/* Linha para adicionar novo lote */}
+                      {aberto && canEdit && (
+                        <tr className="border-b bg-muted/5">
+                          <td colSpan={8} className="p-2 pl-8">
+                            <Link href="/compras"
+                              className="text-xs text-primary hover:underline flex items-center gap-1">
+                              <Plus className="h-3 w-3" /> Adicionar entrada de estoque
+                            </Link>
+                          </td>
+                        </tr>
+                      )}
                     </>
                   )
                 })}
 
                 {filtrado.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
                       Nenhum defensivo encontrado
                     </td>
                   </tr>
@@ -246,6 +277,59 @@ export function EstoqueTable({ estoque, lotes, role }: {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal edição de lote */}
+      {editando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm space-y-4 p-6">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-base">Corrigir Estoque</h2>
+              <button onClick={() => setEditando(null)}><X className="h-5 w-5 text-muted-foreground" /></button>
+            </div>
+
+            <div className="text-sm text-muted-foreground bg-muted/30 rounded-md px-3 py-2">
+              <p className="font-medium text-foreground">{editando.defensivo?.nome_comercial}</p>
+              <p>NF {editando.numero_nf ?? 'S/NF'} · Compra: {formatarData(editando.data_compra)}</p>
+            </div>
+
+            {erroLote && <p className="text-xs text-red-600 bg-red-50 rounded p-2">{erroLote}</p>}
+
+            <div>
+              <label className="text-sm font-medium">
+                Quantidade atual ({editando.defensivo?.unidade})
+              </label>
+              <Input
+                type="number" step="0.01" min="0"
+                className="mt-1"
+                value={novaQtd}
+                onChange={e => setNovaQtd(e.target.value)}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Valor anterior: {formatarNumero(editando.quantidade_atual, 2)} {editando.defensivo?.unidade}
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Observação (opcional)</label>
+              <Input
+                className="mt-1"
+                placeholder="Ex: Correção de inventário..."
+                value={novaObs}
+                onChange={e => setNovaObs(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setEditando(null)}>Cancelar</Button>
+              <Button onClick={salvarLote} disabled={salvandoLote}>
+                <Check className="h-4 w-4 mr-1" />
+                {salvandoLote ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
