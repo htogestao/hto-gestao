@@ -324,7 +324,14 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
                   <select
                     className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={it.defensivo_id}
-                    onChange={e => atualizarItem(i, 'defensivo_id', e.target.value)}
+                    onChange={e => {
+                      const defId = e.target.value
+                      const primLote = lotesDoDefensivo(defId)[0]
+                      setItens(prev => prev.map((it2, idx) => idx === i
+                        ? { ...it2, defensivo_id: defId, lote_id: primLote?.id ?? '' }
+                        : it2
+                      ))
+                    }}
                   >
                     <option value="">Selecione...</option>
                     {defensivos.map(d => (
@@ -335,16 +342,18 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
 
                 {it.defensivo_id && lotesDoDefensivo(it.defensivo_id).length > 0 && (
                   <div>
-                    <label className="text-xs font-medium">Lote / NF</label>
+                    <label className="text-xs font-medium">
+                      Lote / NF <span className="text-green-600 font-normal">(estoque será descontado)</span>
+                    </label>
                     <select
                       className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={it.lote_id}
                       onChange={e => atualizarItem(i, 'lote_id', e.target.value)}
                     >
-                      <option value="">Sem lote</option>
+                      <option value="">— Sem lote (não desconta estoque)</option>
                       {lotesDoDefensivo(it.defensivo_id).map(l => (
                         <option key={l.id} value={l.id}>
-                          {l.numero_nf ?? 'S/NF'} — saldo: {l.quantidade_atual} {def?.unidade}
+                          NF {l.numero_nf ?? 'S/NF'} — saldo: {l.quantidade_atual} {def?.unidade}
                         </option>
                       ))}
                     </select>
