@@ -10,10 +10,11 @@ import { FileText, RefreshCw, Printer } from 'lucide-react'
 interface FazSimple { id: string; nome: string }
 
 const RELATORIOS = [
-  { key: 'estoque',     label: 'Estoque Atual',              desc: 'Lista completa de defensivos, saldos e vencimentos', adminOnly: false },
-  { key: 'aplicacoes',  label: 'Aplicações por Período',     desc: 'Histórico de aplicações com defensivos e doses',     adminOnly: false },
-  { key: 'compras',     label: 'Histórico de Compras',       desc: 'NFs, fornecedores, valores investidos',              adminOnly: false },
-  { key: 'executivo',   label: 'Relatório Executivo',        desc: 'Custo por fazenda, custo/ha, defensivos mais usados', adminOnly: false },
+  { key: 'estoque',     label: 'Estoque Atual',              desc: 'Lista completa de defensivos, saldos e vencimentos' },
+  { key: 'aplicacoes',  label: 'Aplicações por Período',     desc: 'Histórico de aplicações com defensivos e doses' },
+  { key: 'compras',     label: 'Histórico de Compras',       desc: 'NFs, fornecedores, valores investidos' },
+  { key: 'executivo',   label: 'Relatório Executivo',        desc: 'Custo por fazenda, custo/ha, defensivos mais usados' },
+  { key: 'custo_talhao',label: 'Custo por Talhão',           desc: 'Quanto foi gasto em defensivos em cada talhão, com custo por hectare' },
 ]
 
 export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: FazSimple[] }) {
@@ -29,7 +30,9 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
       const supabase2 = createClient()
 
       if (tipo === 'estoque') {
-        const { data: estoque } = await supabase2.rpc('estoque_atual')
+        const { data: estoqueRaw } = await supabase2.rpc('estoque_atual')
+        // Filtra apenas produtos com saldo > 0
+        const estoque = (estoqueRaw ?? []).filter((e: any) => e.quantidade_total > 0)
         const { data: lotes }   = await supabase2.from('lotes')
           .select('id, numero_nf, quantidade_atual, data_vencimento, preco_unitario, defensivo:defensivos(nome_comercial, unidade)')
           .gt('quantidade_atual', 0).order('data_vencimento', { ascending: true, nullsFirst: false })
@@ -56,6 +59,17 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
           .select('numero_nf, fornecedor, data_compra, quantidade_comprada, preco_unitario, valor_total, data_vencimento, defensivo:defensivos(nome_comercial, unidade, empresa)')
           .gte('data_compra', dataIni).lte('data_compra', dataFim).order('data_compra', { ascending: false })
         imprimirCompras(lotes ?? [], dataIni, dataFim)
+
+      } else if (tipo === 'custo_talhao') {
+        const q2 = supabase2.from('aplicacoes')
+          .select(`fazenda_id, talhao_id, area_aplicada_ha,
+            fazenda:fazendas(nome),
+            talhao:talhoes(nome, area_ha),
+            itens:aplicacao_itens(quantidade_usada, lote:lotes(preco_unitario), defensivo:defensivos(nome_comercial, classe))`)
+          .gte('data', dataIni).lte('data', dataFim).eq('status', 'encerrada')
+        if (fazenda !== 'todas') q2.eq('fazenda_id', fazenda)
+        const { data: aplicCusto } = await q2
+        imprimirCustoTalhao(aplicCusto ?? [], dataIni, dataFim)
 
       } else if (tipo === 'executivo') {
         const { data: aplic } = await supabase2.from('aplicacoes')
@@ -222,6 +236,87 @@ function imprimirCompras(lotes: Record<string,unknown>[], ini: string, fim: stri
     <div class="sub">Total investido: <strong>${formatarMoeda(total)}</strong> · Gerado em ${new Date().toLocaleString('pt-BR')}</div>
     <table>
       <thead><tr><th>Data</th><th>Produto</th><th>Empresa</th><th>NF</th><th>Fornecedor</th><th class="right">Qtd</th><th class="right">Preço Unit.</th><th class="right">Total</th><th>Vencimento</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`)
+}
+
+function imprimirCustoTalhao(aplic: Record<string,unknown>[], ini: string, fim: string) {
+  type AplicItem = {
+    fazenda_id: string; talhao_id: string; area_aplicada_ha: number | null
+    fazenda: { nome: string } | null
+    talhao: { nome: string; area_ha: number | null } | null
+    itens: Array<{
+      quantidade_usada: number
+      lote: { preco_unitario: number | null } | null
+      defensivo: { nome_comercial: string; classe: string } | null
+    }>
+  }
+  const aplicTyped = aplic as unknown as AplicItem[]
+
+  // Agrupar por talhão
+  const porTalhao = new Map<string, {
+    fazenda: string; talhao: string; area_ha: number
+    areaAplicada: number; custo: number; count: number
+    inseticida: number; fungicida: number; herbicida: number; outros: number
+  }>()
+
+  aplicTyped.forEach(a => {
+    const key     = a.talhao_id
+    const fazenda = a.fazenda?.nome ?? '—'
+    const talhao  = a.talhao?.nome ?? '—'
+    const area_ha = a.talhao?.area_ha ?? 0
+    const areaAp  = a.area_aplicada_ha ?? 0
+    const custo   = (a.itens ?? []).reduce((s, i) => s + i.quantidade_usada * (i.lote?.preco_unitario ?? 0), 0)
+
+    const ex = porTalhao.get(key) ?? { fazenda, talhao, area_ha, areaAplicada: 0, custo: 0, count: 0, inseticida: 0, fungicida: 0, herbicida: 0, outros: 0 }
+
+    let ins = ex.inseticida, fun = ex.fungicida, her = ex.herbicida, out = ex.outros
+    ;(a.itens ?? []).forEach(i => {
+      const c = i.defensivo?.classe ?? ''
+      const q = i.quantidade_usada * (i.lote?.preco_unitario ?? 0)
+      if (['inseticida','acaricida','nematicida'].includes(c)) ins += q
+      else if (c === 'fungicida') fun += q
+      else if (c === 'herbicida') her += q
+      else out += q
+    })
+
+    porTalhao.set(key, { fazenda, talhao, area_ha, areaAplicada: ex.areaAplicada + areaAp, custo: ex.custo + custo, count: ex.count + 1, inseticida: ins, fungicida: fun, herbicida: her, outros: out })
+  })
+
+  const sorted = [...porTalhao.values()].sort((a, b) => b.custo - a.custo)
+  const totalCusto = sorted.reduce((s, t) => s + t.custo, 0)
+  const totalArea  = sorted.reduce((s, t) => s + t.areaAplicada, 0)
+
+  const rows = sorted.map(t => `
+    <tr>
+      <td>${t.fazenda}</td>
+      <td>${t.talhao}</td>
+      <td class="right">${formatarNumero(t.area_ha, 1)} ha</td>
+      <td class="right">${t.count}</td>
+      <td class="right">${t.inseticida > 0 ? formatarMoeda(t.inseticida) : '—'}</td>
+      <td class="right">${t.fungicida > 0 ? formatarMoeda(t.fungicida) : '—'}</td>
+      <td class="right">${t.herbicida > 0 ? formatarMoeda(t.herbicida) : '—'}</td>
+      <td class="right"><strong>${formatarMoeda(t.custo)}</strong></td>
+      <td class="right"><strong>${t.area_ha > 0 ? formatarMoeda(t.custo / t.area_ha) + '/ha' : '—'}</strong></td>
+    </tr>`).join('')
+
+  abrirJanelaPDF('Custo por Talhão', `
+    <h1>Custo por Talhão — ${formatarData(ini)} a ${formatarData(fim)}</h1>
+    <div class="sub">
+      Total gasto: <strong>${formatarMoeda(totalCusto)}</strong> ·
+      Área total aplicada: ${formatarNumero(totalArea, 1)} ha ·
+      Custo médio: ${totalArea > 0 ? formatarMoeda(totalCusto / totalArea) + '/ha' : '—'} ·
+      Gerado em ${new Date().toLocaleString('pt-BR')}
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Fazenda</th><th>Talhão</th><th class="right">Área</th>
+          <th class="right">Aplic.</th>
+          <th class="right">Inseticida</th><th class="right">Fungicida</th><th class="right">Herbicida</th>
+          <th class="right">Total</th><th class="right">R$/ha</th>
+        </tr>
+      </thead>
       <tbody>${rows}</tbody>
     </table>`)
 }

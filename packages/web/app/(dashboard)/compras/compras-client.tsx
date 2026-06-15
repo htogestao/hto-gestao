@@ -29,6 +29,7 @@ const FORM_DEFAULT = {
 export function ComprasClient({ lotes: inicial, defensivos, role }: {
   lotes: Lote[]; defensivos: DefSimple[]; role: string
 }) {
+  const canEdit  = role === 'admin' || role === 'viewer'
   const isAdmin  = role === 'admin'
   const supabase = createClient()
 
@@ -37,6 +38,7 @@ export function ComprasClient({ lotes: inicial, defensivos, role }: {
   const [modal, setModal]   = useState(false)
   const [form, setForm]     = useState(FORM_DEFAULT)
   const [saving, setSaving] = useState(false)
+  const [erro,  setErro]    = useState('')
 
   const filtrados = lotes.filter(l =>
     !busca ||
@@ -49,31 +51,34 @@ export function ComprasClient({ lotes: inicial, defensivos, role }: {
 
   async function salvar() {
     if (!form.defensivo_id || !form.quantidade) return
-    setSaving(true)
+    setErro(''); setSaving(true)
     const qtd   = parseFloat(form.quantidade)
     const preco = form.preco_unitario ? parseFloat(form.preco_unitario) : null
 
-    const { data } = await supabase.from('lotes').insert({
-      defensivo_id:       form.defensivo_id,
-      numero_nf:          form.numero_nf || null,
-      fornecedor:         form.fornecedor || null,
-      data_compra:        form.data_compra || null,
+    const { data, error } = await supabase.from('lotes').insert({
+      defensivo_id:        form.defensivo_id,
+      numero_nf:           form.numero_nf || null,
+      fornecedor:          form.fornecedor || null,
+      data_compra:         form.data_compra || null,
       quantidade_comprada: qtd,
-      quantidade_atual:   qtd,
-      preco_unitario:     preco,
-      valor_total:        preco ? qtd * preco : null,
-      data_fabricacao:    form.data_fabricacao || null,
-      data_vencimento:    form.data_vencimento || null,
-      lote_fabricante:    form.lote_fabricante || null,
-      observacoes:        form.observacoes || null,
+      quantidade_atual:    qtd,
+      preco_unitario:      preco,
+      valor_total:         preco ? qtd * preco : null,
+      data_fabricacao:     form.data_fabricacao || null,
+      data_vencimento:     form.data_vencimento || null,
+      lote_fabricante:     form.lote_fabricante || null,
+      observacoes:         form.observacoes || null,
     }).select(`
       id, numero_nf, fornecedor, data_compra, quantidade_comprada, quantidade_atual,
       preco_unitario, valor_total, data_fabricacao, data_vencimento, lote_fabricante, observacoes, created_at,
       defensivo:defensivos(id, nome_comercial, unidade, empresa)
     `).single()
 
+    if (error) {
+      setErro('Erro ao registrar entrada: ' + error.message)
+      setSaving(false); return
+    }
     if (data) {
-      // Registra movimentação de entrada
       await supabase.from('movimentacoes').insert({
         defensivo_id: form.defensivo_id, lote_id: data.id,
         tipo: 'entrada', quantidade: qtd, observacoes: `Entrada NF ${form.numero_nf || 'S/NF'}`,
@@ -94,8 +99,8 @@ export function ComprasClient({ lotes: inicial, defensivos, role }: {
             {lotes.length} lotes · Total investido: {formatarMoeda(totalValor)}
           </p>
         </div>
-        {isAdmin && (
-          <Button onClick={() => setModal(true)}>
+        {canEdit && (
+          <Button onClick={() => { setErro(''); setModal(true) }}>
             <Plus className="h-4 w-4 mr-1" />Nova Entrada
           </Button>
         )}
@@ -177,6 +182,7 @@ export function ComprasClient({ lotes: inicial, defensivos, role }: {
               <button onClick={() => setModal(false)}><X className="h-5 w-5 text-muted-foreground" /></button>
             </div>
             <div className="p-5 space-y-3">
+              {erro && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{erro}</div>}
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Defensivo *</label>
                 <Select value={form.defensivo_id} onValueChange={v => F('defensivo_id', v)}>
