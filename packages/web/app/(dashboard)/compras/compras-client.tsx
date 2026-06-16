@@ -53,6 +53,27 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
   const [criandoProd, setCriandoProd] = useState(false)
   const NP = (k: keyof typeof NOVO_PROD_DEFAULT, v: string) => setNpForm(p => ({ ...p, [k]: v }))
 
+  // Renomear o produto (defensivo) direto no modal de edição
+  const [renomeando,   setRenomeando]   = useState(false)
+  const [nomeEdit,     setNomeEdit]     = useState('')
+  const [salvandoNome, setSalvandoNome] = useState(false)
+
+  async function renomearProduto() {
+    const novo = nomeEdit.trim()
+    if (!novo || !form.defensivo_id) return
+    setErro(''); setSalvandoNome(true)
+    const { error } = await supabase.from('defensivos')
+      .update({ nome_comercial: novo }).eq('id', form.defensivo_id)
+    if (error) { setErro('Erro ao renomear produto: ' + error.message); setSalvandoNome(false); return }
+
+    // Atualiza nome na lista de produtos e nas linhas da tabela
+    setDefensivos(prev => prev.map(d => d.id === form.defensivo_id ? { ...d, nome_comercial: novo } : d))
+    setLotes(prev => prev.map(l => l.defensivo?.id === form.defensivo_id
+      ? { ...l, defensivo: { ...l.defensivo, nome_comercial: novo } as Lote['defensivo'] }
+      : l))
+    setSalvandoNome(false); setRenomeando(false)
+  }
+
   async function criarDefensivo() {
     if (!npForm.nome_comercial.trim() || !npForm.principio_ativo.trim()) {
       setErro('Preencha nome e princípio ativo do novo produto.'); return
@@ -89,12 +110,12 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
   const F = (k: keyof typeof FORM_DEFAULT, v: string) => setForm(p => ({ ...p, [k]: v }))
 
   function abrirNova() {
-    setEditId(null); setErro(''); setNovoProd(false); setNpForm(NOVO_PROD_DEFAULT)
+    setEditId(null); setErro(''); setNovoProd(false); setRenomeando(false); setNpForm(NOVO_PROD_DEFAULT)
     setForm(FORM_DEFAULT); setModal(true)
   }
 
   function abrirEditar(l: Lote) {
-    setEditId(l.id); setErro(''); setNovoProd(false)
+    setEditId(l.id); setErro(''); setNovoProd(false); setRenomeando(false)
     setForm({
       defensivo_id:    l.defensivo?.id ?? '',
       numero_nf:       l.numero_nf ?? '',
@@ -295,7 +316,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-muted-foreground block">Defensivo *</label>
-                  {!editId && (
+                  {!editId ? (
                     <button
                       type="button"
                       onClick={() => { setNovoProd(v => !v); setErro('') }}
@@ -304,8 +325,37 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                       <PackagePlus className="h-3.5 w-3.5" />
                       {novoProd ? 'Cancelar novo produto' : 'Cadastrar produto novo'}
                     </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const atual = defensivos.find(d => d.id === form.defensivo_id)
+                        setNomeEdit(atual?.nome_comercial ?? '')
+                        setRenomeando(v => !v); setErro('')
+                      }}
+                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      {renomeando ? 'Cancelar' : 'Renomear produto'}
+                    </button>
                   )}
                 </div>
+
+                {/* Renomear o produto selecionado */}
+                {editId && renomeando && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2 mb-2">
+                    <p className="text-xs font-medium text-primary">Corrigir o nome do produto</p>
+                    <p className="text-xs text-muted-foreground">
+                      Muda o nome do produto em todo o sistema (cadastro, estoque, aplicações).
+                    </p>
+                    <div className="flex gap-2">
+                      <Input value={nomeEdit} onChange={e => setNomeEdit(e.target.value)} placeholder="Novo nome do produto" />
+                      <Button size="sm" onClick={renomearProduto} disabled={salvandoNome || !nomeEdit.trim()}>
+                        {salvandoNome ? '...' : <Check className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {!novoProd ? (
                   <Select value={form.defensivo_id} onValueChange={v => F('defensivo_id', v)}>
