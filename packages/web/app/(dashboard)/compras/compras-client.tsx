@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatarData, formatarMoeda, formatarNumero, diasParaVencer, statusVencimentoBadge, cn } from '@/lib/utils'
 import { CLASSE_LABELS } from '@agro/shared'
-import { Plus, Search, X, Check, ShoppingCart, PackagePlus } from 'lucide-react'
+import { Plus, Search, X, Check, ShoppingCart, PackagePlus, Pencil } from 'lucide-react'
 
 interface Lote {
   id: string; numero_nf: string | null; fornecedor: string | null
@@ -23,7 +23,7 @@ interface DefSimple { id: string; nome_comercial: string; unidade: string }
 
 const FORM_DEFAULT = {
   defensivo_id: '', numero_nf: '', fornecedor: '', data_compra: new Date().toISOString().split('T')[0],
-  quantidade: '', preco_unitario: '', data_fabricacao: '', data_vencimento: '',
+  quantidade: '', saldo: '', preco_unitario: '', data_fabricacao: '', data_vencimento: '',
   lote_fabricante: '', observacoes: '',
 }
 
@@ -42,6 +42,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
   const [defensivos, setDefensivos] = useState(defsIniciais)
   const [busca, setBusca]   = useState('')
   const [modal, setModal]   = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm]     = useState(FORM_DEFAULT)
   const [saving, setSaving] = useState(false)
   const [erro,  setErro]    = useState('')
@@ -87,12 +88,66 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
 
   const F = (k: keyof typeof FORM_DEFAULT, v: string) => setForm(p => ({ ...p, [k]: v }))
 
+  function abrirNova() {
+    setEditId(null); setErro(''); setNovoProd(false); setNpForm(NOVO_PROD_DEFAULT)
+    setForm(FORM_DEFAULT); setModal(true)
+  }
+
+  function abrirEditar(l: Lote) {
+    setEditId(l.id); setErro(''); setNovoProd(false)
+    setForm({
+      defensivo_id:    l.defensivo?.id ?? '',
+      numero_nf:       l.numero_nf ?? '',
+      fornecedor:      l.fornecedor ?? '',
+      data_compra:     l.data_compra ?? '',
+      quantidade:      String(l.quantidade_comprada ?? ''),
+      saldo:           String(l.quantidade_atual ?? ''),
+      preco_unitario:  l.preco_unitario != null ? String(l.preco_unitario) : '',
+      data_fabricacao: l.data_fabricacao ?? '',
+      data_vencimento: l.data_vencimento ?? '',
+      lote_fabricante: l.lote_fabricante ?? '',
+      observacoes:     l.observacoes ?? '',
+    })
+    setModal(true)
+  }
+
+  const SELECT_LOTE = `
+    id, numero_nf, fornecedor, data_compra, quantidade_comprada, quantidade_atual,
+    preco_unitario, valor_total, data_fabricacao, data_vencimento, lote_fabricante, observacoes, created_at,
+    defensivo:defensivos(id, nome_comercial, unidade, empresa)
+  `
+
   async function salvar() {
     if (!form.defensivo_id || !form.quantidade) return
     setErro(''); setSaving(true)
     const qtd   = parseFloat(form.quantidade)
     const preco = form.preco_unitario ? parseFloat(form.preco_unitario) : null
 
+    if (editId) {
+      // EDIÇÃO de lote existente
+      const saldo = form.saldo !== '' ? parseFloat(form.saldo) : qtd
+      const { data, error } = await supabase.from('lotes').update({
+        defensivo_id:        form.defensivo_id,
+        numero_nf:           form.numero_nf || null,
+        fornecedor:          form.fornecedor || null,
+        data_compra:         form.data_compra || null,
+        quantidade_comprada: qtd,
+        quantidade_atual:    saldo,
+        preco_unitario:      preco,
+        valor_total:         preco ? qtd * preco : null,
+        data_fabricacao:     form.data_fabricacao || null,
+        data_vencimento:     form.data_vencimento || null,
+        lote_fabricante:     form.lote_fabricante || null,
+        observacoes:         form.observacoes || null,
+      }).eq('id', editId).select(SELECT_LOTE).single()
+
+      if (error) { setErro('Erro ao salvar alterações: ' + error.message); setSaving(false); return }
+      if (data) setLotes(prev => prev.map(l => l.id === editId ? (data as Lote) : l))
+      setSaving(false); setModal(false); setEditId(null); setForm(FORM_DEFAULT)
+      return
+    }
+
+    // NOVA entrada
     const { data, error } = await supabase.from('lotes').insert({
       defensivo_id:        form.defensivo_id,
       numero_nf:           form.numero_nf || null,
@@ -106,11 +161,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
       data_vencimento:     form.data_vencimento || null,
       lote_fabricante:     form.lote_fabricante || null,
       observacoes:         form.observacoes || null,
-    }).select(`
-      id, numero_nf, fornecedor, data_compra, quantidade_comprada, quantidade_atual,
-      preco_unitario, valor_total, data_fabricacao, data_vencimento, lote_fabricante, observacoes, created_at,
-      defensivo:defensivos(id, nome_comercial, unidade, empresa)
-    `).single()
+    }).select(SELECT_LOTE).single()
 
     if (error) {
       setErro('Erro ao registrar entrada: ' + error.message)
@@ -138,7 +189,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
           </p>
         </div>
         {canEdit && (
-          <Button onClick={() => { setErro(''); setNovoProd(false); setNpForm(NOVO_PROD_DEFAULT); setModal(true) }}>
+          <Button onClick={abrirNova}>
             <Plus className="h-4 w-4 mr-1" />Nova Entrada
           </Button>
         )}
@@ -165,6 +216,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                   <th className="text-right p-3 font-medium">Valor Total</th>
                   <th className="text-center p-3 font-medium">Vencimento</th>
                   <th className="text-left p-3 font-medium">Data Compra</th>
+                  {canEdit && <th className="text-center p-3 font-medium">Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -196,11 +248,18 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                         ) : <span className="text-muted-foreground text-xs">—</span>}
                       </td>
                       <td className="p-3 text-muted-foreground">{formatarData(l.data_compra)}</td>
+                      {canEdit && (
+                        <td className="p-3 text-center">
+                          <Button variant="ghost" size="sm" onClick={() => abrirEditar(l)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
                 {filtrados.length === 0 && (
-                  <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">
+                  <tr><td colSpan={canEdit ? 10 : 9} className="p-8 text-center text-muted-foreground">
                     <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-20" />
                     Nenhuma compra encontrada
                   </td></tr>
@@ -216,22 +275,24 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="font-bold text-lg">Nova Entrada de Estoque</h2>
-              <button onClick={() => setModal(false)}><X className="h-5 w-5 text-muted-foreground" /></button>
+              <h2 className="font-bold text-lg">{editId ? 'Editar Entrada' : 'Nova Entrada de Estoque'}</h2>
+              <button onClick={() => { setModal(false); setEditId(null) }}><X className="h-5 w-5 text-muted-foreground" /></button>
             </div>
             <div className="p-5 space-y-3">
               {erro && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{erro}</div>}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-muted-foreground block">Defensivo *</label>
-                  <button
-                    type="button"
-                    onClick={() => { setNovoProd(v => !v); setErro('') }}
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
-                  >
-                    <PackagePlus className="h-3.5 w-3.5" />
-                    {novoProd ? 'Cancelar novo produto' : 'Cadastrar produto novo'}
-                  </button>
+                  {!editId && (
+                    <button
+                      type="button"
+                      onClick={() => { setNovoProd(v => !v); setErro('') }}
+                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                    >
+                      <PackagePlus className="h-3.5 w-3.5" />
+                      {novoProd ? 'Cancelar novo produto' : 'Cadastrar produto novo'}
+                    </button>
+                  )}
                 </div>
 
                 {!novoProd ? (
@@ -297,10 +358,19 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                   <Input value={form.fornecedor} onChange={e => F('fornecedor', e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Quantidade *</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                    {editId ? 'Qtd Comprada *' : 'Quantidade *'}
+                  </label>
                   <Input type="number" step="0.1" value={form.quantidade}
                     onChange={e => F('quantidade', e.target.value)} placeholder="0" />
                 </div>
+                {editId && (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Saldo atual</label>
+                    <Input type="number" step="0.1" value={form.saldo}
+                      onChange={e => F('saldo', e.target.value)} placeholder="0" />
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Preço Unitário (R$)</label>
                   <Input type="number" step="0.01" value={form.preco_unitario}
@@ -337,9 +407,9 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
               )}
             </div>
             <div className="flex gap-2 justify-end p-5 border-t">
-              <Button variant="outline" onClick={() => setModal(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => { setModal(false); setEditId(null) }}>Cancelar</Button>
               <Button onClick={salvar} disabled={saving || !form.defensivo_id || !form.quantidade}>
-                {saving ? 'Salvando...' : <><Check className="h-4 w-4 mr-1" />Registrar Entrada</>}
+                {saving ? 'Salvando...' : <><Check className="h-4 w-4 mr-1" />{editId ? 'Salvar Alterações' : 'Registrar Entrada'}</>}
               </Button>
             </div>
           </div>
