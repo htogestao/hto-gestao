@@ -9,10 +9,13 @@ export default async function InventarioPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+
   const { data: inventarios } = await supabase
     .from('inventario_fisico')
     .select(`
-      id, data, observacoes, created_at,
+      *,
       usuario:profiles(nome),
       itens:inventario_itens(
         id, quantidade_sistema, quantidade_contada, diferenca,
@@ -21,5 +24,5 @@ export default async function InventarioPage() {
     `)
     .order('data', { ascending: false })
 
-  return <InventarioClient inventarios={(inventarios ?? []) as any} />
+  return <InventarioClient inventarios={(inventarios ?? []) as any} role={profile?.role ?? 'viewer'} />
 }

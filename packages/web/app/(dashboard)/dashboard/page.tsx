@@ -22,8 +22,8 @@ export default async function DashboardPage() {
     { data: estoque },
     { data: alertas },
     { data: aplicacoesMes },
-    { data: fazendas },
-    { data: talhoes },
+    { count: fazendasCount },
+    { count: talhoesCount },
     { data: aplicacoesRecentes },
   ] = await Promise.all([
     supabase.rpc('estoque_atual'),
@@ -187,7 +187,7 @@ export default async function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{fazendas?.count ?? 0}</p>
+            <p className="text-3xl font-bold">{fazendasCount ?? 0}</p>
           </CardContent>
         </Card>
         <Card>
@@ -198,7 +198,7 @@ export default async function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{talhoes?.count ?? 0}</p>
+            <p className="text-3xl font-bold">{talhoesCount ?? 0}</p>
           </CardContent>
         </Card>
       </div>
