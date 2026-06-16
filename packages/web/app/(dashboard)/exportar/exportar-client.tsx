@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Download, FileSpreadsheet, RefreshCw } from 'lucide-react'
+import { Download, FileSpreadsheet, RefreshCw, DatabaseBackup, ShieldCheck } from 'lucide-react'
 
 type TipoExport = 'estoque' | 'movimentacoes' | 'aplicacoes' | 'compras' | 'fazendas_talhoes'
 
@@ -28,6 +28,48 @@ export function ExportarClient({ role }: { role: string }) {
   )
   const [dataFim, setDataFim] = useState(new Date().toISOString().split('T')[0])
   const [carregando, setCarregando] = useState<TipoExport | null>(null)
+  const [backupLoading, setBackupLoading] = useState(false)
+
+  // Backup completo: baixa TODAS as tabelas num único arquivo (várias abas)
+  async function fazerBackupCompleto() {
+    setBackupLoading(true)
+    try {
+      const wb = XLSX.utils.book_new()
+      const addSheet = (nome: string, rows: any[] | null) =>
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows ?? []), nome.slice(0, 31))
+
+      const [
+        defensivos, lotes, fazendas, talhoes,
+        aplicacoes, aplicacaoItens, movimentacoes,
+        inventarios, inventarioItens,
+      ] = await Promise.all([
+        supabase.from('defensivos').select('*'),
+        supabase.from('lotes').select('*'),
+        supabase.from('fazendas').select('*'),
+        supabase.from('talhoes').select('*'),
+        supabase.from('aplicacoes').select('*'),
+        supabase.from('aplicacao_itens').select('*'),
+        supabase.from('movimentacoes').select('*'),
+        supabase.from('inventario_fisico').select('*'),
+        supabase.from('inventario_itens').select('*'),
+      ])
+
+      addSheet('Defensivos',      defensivos.data)
+      addSheet('Lotes',           lotes.data)
+      addSheet('Fazendas',        fazendas.data)
+      addSheet('Talhoes',         talhoes.data)
+      addSheet('Aplicacoes',      aplicacoes.data)
+      addSheet('Aplicacao_Itens', aplicacaoItens.data)
+      addSheet('Movimentacoes',   movimentacoes.data)
+      addSheet('Inventarios',     inventarios.data)
+      addSheet('Inventario_Itens',inventarioItens.data)
+
+      const hoje = new Date().toISOString().split('T')[0]
+      XLSX.writeFile(wb, `backup_completo_${hoje}.xlsx`)
+    } finally {
+      setBackupLoading(false)
+    }
+  }
 
   async function exportar(tipo: TipoExport) {
     setCarregando(tipo)
@@ -223,6 +265,32 @@ export function ExportarClient({ role }: { role: string }) {
         <h1 className="text-2xl font-bold">Exportar Excel</h1>
         <p className="text-sm text-muted-foreground mt-1">Baixe relatórios em formato .xlsx</p>
       </div>
+
+      {/* Backup completo — recomendado fazer semanalmente */}
+      {(role === 'admin' || role === 'viewer') && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="h-11 w-11 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <DatabaseBackup className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold flex items-center gap-1.5">
+                Backup Completo do Sistema
+                <ShieldCheck className="h-4 w-4 text-green-600" />
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Baixa TODOS os dados (defensivos, estoque, fazendas, talhões, aplicações, movimentações,
+                inventários) em um único arquivo. Recomendado fazer toda semana e guardar em local seguro.
+              </p>
+            </div>
+            <Button onClick={fazerBackupCompleto} disabled={backupLoading || carregando !== null}>
+              {backupLoading
+                ? <><RefreshCw className="h-4 w-4 animate-spin mr-2" />Gerando...</>
+                : <><DatabaseBackup className="h-4 w-4 mr-2" />Baixar Backup</>}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Período */}
       <Card>

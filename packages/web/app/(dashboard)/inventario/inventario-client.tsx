@@ -1,10 +1,12 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Plus, ClipboardList, ChevronDown, ChevronRight, TrendingDown, TrendingUp, Minus, Calendar, User } from 'lucide-react'
+import { Plus, ClipboardList, ChevronDown, ChevronRight, TrendingDown, TrendingUp, Minus, User, CheckCircle2, RefreshCw } from 'lucide-react'
 import { formatarData, formatarNumero, cn } from '@/lib/utils'
 
 interface Item {
@@ -20,15 +22,35 @@ interface Inventario {
   data: string
   observacoes: string | null
   created_at: string
+  aplicado: boolean
+  aplicado_em: string | null
   usuario: { nome: string } | null
   itens: Item[]
 }
 
-export function InventarioClient({ inventarios }: { inventarios: Inventario[] }) {
+export function InventarioClient({ inventarios, role }: { inventarios: Inventario[]; role: string }) {
+  const router    = useRouter()
+  const supabase  = createClient()
+  const podeAplicar = role === 'admin' || role === 'viewer'
+
   const [expandido, setExpandido] = useState<string | null>(null)
+  const [aplicando, setAplicando] = useState<string | null>(null)
+  const [erro, setErro]           = useState<string | null>(null)
 
   function toggle(id: string) {
     setExpandido(prev => prev === id ? null : id)
+  }
+
+  async function aplicar(inv: Inventario) {
+    const comDif = inv.itens.filter(i => i.diferenca !== 0).length
+    if (!confirm(
+      `Aplicar este inventário ao estoque?\n\n${comDif} produto(s) terão o saldo ajustado para bater com a contagem física. Esta ação registra uma movimentação de ajuste e não pode ser desfeita automaticamente.`
+    )) return
+    setErro(null); setAplicando(inv.id)
+    const { error } = await supabase.rpc('aplicar_inventario', { p_inventario_id: inv.id })
+    setAplicando(null)
+    if (error) { setErro(error.message); return }
+    router.refresh()
   }
 
   return (
@@ -45,6 +67,12 @@ export function InventarioClient({ inventarios }: { inventarios: Inventario[] })
           </Link>
         </Button>
       </div>
+
+      {erro && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
+          Erro ao aplicar: {erro}
+        </div>
+      )}
 
       {inventarios.length === 0 ? (
         <Card>
@@ -89,6 +117,11 @@ export function InventarioClient({ inventarios }: { inventarios: Inventario[] })
                       {ok > 0 && comDiferenca.length === 0 && (
                         <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
                           ✅ Tudo conferindo
+                        </Badge>
+                      )}
+                      {inv.aplicado && (
+                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />Aplicado ao estoque
                         </Badge>
                       )}
                     </div>
@@ -162,6 +195,34 @@ export function InventarioClient({ inventarios }: { inventarios: Inventario[] })
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Aplicar ajuste ao estoque */}
+                    {podeAplicar && (
+                      inv.aplicado ? (
+                        <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md p-3">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Estoque ajustado conforme esta contagem
+                          {inv.aplicado_em && ` em ${formatarData(inv.aplicado_em)}`}.
+                        </div>
+                      ) : comDiferenca.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Sem diferenças — nada a ajustar no estoque.</p>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-md p-3">
+                          <p className="text-sm text-amber-800">
+                            {comDiferenca.length} produto(s) com diferença. Aplicar ajusta o saldo do estoque para bater com a contagem.
+                          </p>
+                          <Button
+                            size="sm"
+                            disabled={aplicando === inv.id}
+                            onClick={() => aplicar(inv)}
+                          >
+                            {aplicando === inv.id
+                              ? <><RefreshCw className="h-4 w-4 mr-1 animate-spin" />Aplicando...</>
+                              : <><CheckCircle2 className="h-4 w-4 mr-1" />Aplicar ao estoque</>}
+                          </Button>
+                        </div>
+                      )
+                    )}
                   </div>
                 )}
               </Card>
