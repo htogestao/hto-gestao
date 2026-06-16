@@ -362,7 +362,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                     <SelectTrigger><SelectValue placeholder="Selecione o produto..." /></SelectTrigger>
                     <SelectContent>
                       {defensivos.map(d => (
-                        <SelectItem key={d.id} value={d.id}>{d.nome_comercial} ({d.unidade})</SelectItem>
+                        <SelectItem key={d.id} value={d.id}>{d.nome_comercial}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
