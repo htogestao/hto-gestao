@@ -225,8 +225,20 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                   return (
                     <tr key={l.id} className="border-b hover:bg-muted/10 transition-colors">
                       <td className="p-3">
-                        <p className="font-medium">{l.defensivo?.nome_comercial ?? '—'}</p>
-                        <p className="text-xs text-muted-foreground">{l.defensivo?.empresa ?? ''}</p>
+                        {canEdit ? (
+                          <button onClick={() => abrirEditar(l)} className="text-left group">
+                            <p className="font-medium group-hover:text-primary group-hover:underline flex items-center gap-1">
+                              {l.defensivo?.nome_comercial ?? '—'}
+                              <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </p>
+                            <p className="text-xs text-muted-foreground">{l.defensivo?.empresa ?? ''}</p>
+                          </button>
+                        ) : (
+                          <>
+                            <p className="font-medium">{l.defensivo?.nome_comercial ?? '—'}</p>
+                            <p className="text-xs text-muted-foreground">{l.defensivo?.empresa ?? ''}</p>
+                          </>
+                        )}
                       </td>
                       <td className="p-3 font-mono text-sm">{l.numero_nf ?? <span className="text-muted-foreground">S/NF</span>}</td>
                       <td className="p-3 text-muted-foreground">{l.fornecedor ?? '—'}</td>
