@@ -56,7 +56,7 @@ const FORM_DEFAULT = {
 type AbaForm = 'identificacao' | 'classificacao' | 'uso' | 'estoque'
 
 export function DefensivosClient({ defensivos: inicial, role }: { defensivos: Defensivo[]; role: string }) {
-  const isAdmin  = role === 'admin'
+  const isAdmin  = role === 'admin' || role === 'viewer'
   const supabase = createClient()
   const router   = useRouter()
 
@@ -69,6 +69,7 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
   const [editId, setEditId]         = useState<string | null>(null)
   const [saving, setSaving]         = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [erro, setErro]             = useState<string | null>(null)
 
   const classes = ['todos', ...Object.keys(CLASSE_LABELS)]
   const filtrados = defensivos.filter(d => {
@@ -137,10 +138,44 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
     setSaving(false); setModal(null)
   }
 
-  async function excluir(id: string) {
-    if (!confirm('Excluir este defensivo? Lotes e movimentações vinculados serão preservados.')) return
-    setDeletingId(id)
-    await supabase.from('defensivos').delete().eq('id', id)
+  async function excluir(id: string, nome: string) {
+    if (!confirm(`Excluir o produto "${nome}"?`)) return
+    setErro(null); setDeletingId(id)
+
+    // Tenta excluir direto (funciona se não houver nada vinculado)
+    const { error } = await supabase.from('defensivos').delete().eq('id', id)
+
+    if (!error) {
+      setDefensivos(prev => prev.filter(d => d.id !== id))
+      setDeletingId(null)
+      return
+    }
+
+    // FK: produto tem vínculos. Verifica se foi usado em aplicações.
+    const { count: usosAplic } = await supabase
+      .from('aplicacao_itens').select('id', { count: 'exact', head: true }).eq('defensivo_id', id)
+
+    if (usosAplic && usosAplic > 0) {
+      setErro(`"${nome}" já foi usado em aplicações, então não pode ser excluído (apagaria histórico). Para corrigir o nome, use o botão de editar (lápis).`)
+      setDeletingId(null)
+      return
+    }
+
+    // Sem uso em aplicações: oferece limpar as entradas de estoque vinculadas
+    const ok = confirm(
+      `"${nome}" tem entradas de estoque vinculadas. Excluir o produto E todas as entradas dele? (não afeta aplicações)`
+    )
+    if (!ok) { setDeletingId(null); return }
+
+    await supabase.from('movimentacoes').delete().eq('defensivo_id', id)
+    await supabase.from('lotes').delete().eq('defensivo_id', id)
+    const { error: err2 } = await supabase.from('defensivos').delete().eq('id', id)
+
+    if (err2) {
+      setErro(`Não foi possível excluir "${nome}": ${err2.message}. Você pode corrigir o nome pelo botão de editar.`)
+      setDeletingId(null)
+      return
+    }
     setDefensivos(prev => prev.filter(d => d.id !== id))
     setDeletingId(null)
   }
@@ -166,6 +201,15 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
           <Button onClick={abrirNovo}><Plus className="h-4 w-4 mr-1" />Novo Defensivo</Button>
         )}
       </div>
+
+      {erro && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 flex items-start justify-between gap-3">
+          <span>{erro}</span>
+          <button onClick={() => setErro(null)} className="text-red-400 hover:text-red-600 shrink-0">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-48">
@@ -237,7 +281,7 @@ export function DefensivosClient({ defensivos: inicial, role }: { defensivos: De
                           </Button>
                           <Button variant="ghost" size="sm"
                             disabled={deletingId === d.id}
-                            onClick={() => excluir(d.id)}
+                            onClick={() => excluir(d.id, d.nome_comercial)}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
