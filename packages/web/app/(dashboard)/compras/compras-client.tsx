@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatarData, formatarMoeda, formatarNumero, diasParaVencer, statusVencimentoBadge, cn } from '@/lib/utils'
-import { Plus, Search, X, Check, ShoppingCart } from 'lucide-react'
+import { CLASSE_LABELS } from '@agro/shared'
+import { Plus, Search, X, Check, ShoppingCart, PackagePlus } from 'lucide-react'
 
 interface Lote {
   id: string; numero_nf: string | null; fornecedor: string | null
@@ -26,7 +27,11 @@ const FORM_DEFAULT = {
   lote_fabricante: '', observacoes: '',
 }
 
-export function ComprasClient({ lotes: inicial, defensivos, role }: {
+const NOVO_PROD_DEFAULT = {
+  nome_comercial: '', principio_ativo: '', classe: 'herbicida', unidade: 'L', empresa: '',
+}
+
+export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }: {
   lotes: Lote[]; defensivos: DefSimple[]; role: string
 }) {
   const canEdit  = role === 'admin' || role === 'viewer'
@@ -34,11 +39,44 @@ export function ComprasClient({ lotes: inicial, defensivos, role }: {
   const supabase = createClient()
 
   const [lotes, setLotes]   = useState(inicial)
+  const [defensivos, setDefensivos] = useState(defsIniciais)
   const [busca, setBusca]   = useState('')
   const [modal, setModal]   = useState(false)
   const [form, setForm]     = useState(FORM_DEFAULT)
   const [saving, setSaving] = useState(false)
   const [erro,  setErro]    = useState('')
+
+  // Cadastro inline de produto novo
+  const [novoProd,    setNovoProd]   = useState(false)
+  const [npForm,      setNpForm]     = useState(NOVO_PROD_DEFAULT)
+  const [criandoProd, setCriandoProd] = useState(false)
+  const NP = (k: keyof typeof NOVO_PROD_DEFAULT, v: string) => setNpForm(p => ({ ...p, [k]: v }))
+
+  async function criarDefensivo() {
+    if (!npForm.nome_comercial.trim() || !npForm.principio_ativo.trim()) {
+      setErro('Preencha nome e princípio ativo do novo produto.'); return
+    }
+    setErro(''); setCriandoProd(true)
+    const { data, error } = await supabase.from('defensivos').insert({
+      nome_comercial:  npForm.nome_comercial.trim(),
+      principio_ativo: npForm.principio_ativo.trim(),
+      classe:          npForm.classe,
+      unidade:         npForm.unidade,
+      empresa:         npForm.empresa.trim() || null,
+      estoque_minimo:  0,
+    }).select('id, nome_comercial, unidade').single()
+
+    if (error) {
+      setErro('Erro ao cadastrar produto: ' + error.message)
+      setCriandoProd(false); return
+    }
+    // Adiciona à lista, seleciona e fecha o mini-form
+    setDefensivos(prev => [...prev, data as DefSimple].sort((a,b) => a.nome_comercial.localeCompare(b.nome_comercial)))
+    setForm(p => ({ ...p, defensivo_id: data!.id }))
+    setNpForm(NOVO_PROD_DEFAULT)
+    setNovoProd(false)
+    setCriandoProd(false)
+  }
 
   const filtrados = lotes.filter(l =>
     !busca ||
@@ -100,7 +138,7 @@ export function ComprasClient({ lotes: inicial, defensivos, role }: {
           </p>
         </div>
         {canEdit && (
-          <Button onClick={() => { setErro(''); setModal(true) }}>
+          <Button onClick={() => { setErro(''); setNovoProd(false); setNpForm(NOVO_PROD_DEFAULT); setModal(true) }}>
             <Plus className="h-4 w-4 mr-1" />Nova Entrada
           </Button>
         )}
@@ -184,15 +222,70 @@ export function ComprasClient({ lotes: inicial, defensivos, role }: {
             <div className="p-5 space-y-3">
               {erro && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{erro}</div>}
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Defensivo *</label>
-                <Select value={form.defensivo_id} onValueChange={v => F('defensivo_id', v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o produto..." /></SelectTrigger>
-                  <SelectContent>
-                    {defensivos.map(d => (
-                      <SelectItem key={d.id} value={d.id}>{d.nome_comercial} ({d.unidade})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-muted-foreground block">Defensivo *</label>
+                  <button
+                    type="button"
+                    onClick={() => { setNovoProd(v => !v); setErro('') }}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <PackagePlus className="h-3.5 w-3.5" />
+                    {novoProd ? 'Cancelar novo produto' : 'Cadastrar produto novo'}
+                  </button>
+                </div>
+
+                {!novoProd ? (
+                  <Select value={form.defensivo_id} onValueChange={v => F('defensivo_id', v)}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o produto..." /></SelectTrigger>
+                    <SelectContent>
+                      {defensivos.map(d => (
+                        <SelectItem key={d.id} value={d.id}>{d.nome_comercial} ({d.unidade})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                    <p className="text-xs font-medium text-primary">Cadastrar novo defensivo</p>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Nome comercial *</label>
+                      <Input value={npForm.nome_comercial} onChange={e => NP('nome_comercial', e.target.value)} placeholder="Ex: ROUNDUP WG" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Princípio ativo *</label>
+                      <Input value={npForm.principio_ativo} onChange={e => NP('principio_ativo', e.target.value)} placeholder="Ex: GLIFOSATO" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Classe *</label>
+                        <select
+                          className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+                          value={npForm.classe} onChange={e => NP('classe', e.target.value)}
+                        >
+                          {Object.entries(CLASSE_LABELS).map(([k, v]) => (
+                            <option key={k} value={k}>{v}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Unidade *</label>
+                        <select
+                          className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+                          value={npForm.unidade} onChange={e => NP('unidade', e.target.value)}
+                        >
+                          <option value="L">Litros (L)</option>
+                          <option value="kg">Quilos (kg)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Fabricante / Empresa</label>
+                      <Input value={npForm.empresa} onChange={e => NP('empresa', e.target.value)} placeholder="Ex: SYNGENTA" />
+                    </div>
+                    <Button size="sm" className="w-full" onClick={criarDefensivo} disabled={criandoProd}>
+                      {criandoProd ? 'Cadastrando...' : <><Check className="h-4 w-4 mr-1" />Cadastrar e selecionar</>}
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
