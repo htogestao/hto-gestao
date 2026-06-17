@@ -66,6 +66,8 @@ export function ExportarClient({ role }: { role: string }) {
 
       const hoje = new Date().toISOString().split('T')[0]
       XLSX.writeFile(wb, `backup_completo_${hoje}.xlsx`)
+      // Registra a data para o lembrete de backup no dashboard
+      try { localStorage.setItem('hto_ultimo_backup', new Date().toISOString()) } catch {}
     } finally {
       setBackupLoading(false)
     }

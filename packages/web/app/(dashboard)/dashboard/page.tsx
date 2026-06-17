@@ -6,6 +6,7 @@ import { GraficoEstoque } from '@/components/grafico-estoque'
 import { formatarNumero, formatarMoeda } from '@/lib/utils'
 import { Package, Tractor, AlertTriangle, DollarSign, MapPin, Layers } from 'lucide-react'
 import { AlertasAplicacaoCard } from '@/components/alertas-aplicacao-card'
+import { BackupReminder } from '@/components/backup-reminder'
 
 export const dynamic = 'force-dynamic'
 
@@ -112,6 +113,9 @@ export default async function DashboardPage() {
           Visão geral da operação — {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
         </p>
       </div>
+
+      {/* Lembrete de backup (Analista e Patrão) */}
+      {(profile?.role === 'admin' || profile?.role === 'viewer') && <BackupReminder />}
 
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
