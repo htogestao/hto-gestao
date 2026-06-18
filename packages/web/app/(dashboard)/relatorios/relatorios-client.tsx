@@ -10,7 +10,8 @@ import { FileText, RefreshCw, Printer } from 'lucide-react'
 interface FazSimple { id: string; nome: string }
 
 const RELATORIOS = [
-  { key: 'estoque',     label: 'Estoque Atual',              desc: 'Lista completa de defensivos, saldos e vencimentos' },
+  { key: 'estoque',          label: 'Estoque Atual (com saldo)',   desc: 'Apenas os produtos que têm saldo em estoque' },
+  { key: 'estoque_completo', label: 'Estoque Completo (todos)',    desc: 'Todos os produtos cadastrados, inclusive os zerados' },
   { key: 'aplicacoes',  label: 'Aplicações por Período',     desc: 'Histórico de aplicações com defensivos e doses' },
   { key: 'compras',     label: 'Histórico de Compras',       desc: 'NFs, fornecedores, valores investidos' },
   { key: 'executivo',   label: 'Relatório Executivo',        desc: 'Custo por fazenda, custo/ha, defensivos mais usados' },
@@ -29,13 +30,18 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
     try {
       const supabase2 = createClient()
 
-      if (tipo === 'estoque') {
+      if (tipo === 'estoque' || tipo === 'estoque_completo') {
+        const todos = tipo === 'estoque_completo'
         const { data: estoqueRaw } = await supabase2.rpc('estoque_atual')
-        // Filtra apenas produtos com saldo > 0
-        const estoque = (estoqueRaw ?? []).filter((e: any) => e.quantidade_total > 0)
-        const { data: lotes }   = await supabase2.from('lotes')
+        // 'estoque' = só com saldo; 'estoque_completo' = todos os produtos
+        const estoque = todos
+          ? (estoqueRaw ?? [])
+          : (estoqueRaw ?? []).filter((e: any) => e.quantidade_total > 0)
+        let q = supabase2.from('lotes')
           .select('id, numero_nf, quantidade_atual, data_vencimento, preco_unitario, defensivo:defensivos(nome_comercial, unidade)')
-          .gt('quantidade_atual', 0).order('data_vencimento', { ascending: true, nullsFirst: false })
+          .order('data_vencimento', { ascending: true, nullsFirst: false })
+        if (!todos) q = q.gt('quantidade_atual', 0)
+        const { data: lotes } = await q
 
         imprimirEstoque(estoque ?? [], lotes ?? [], dataIni, dataFim)
 
