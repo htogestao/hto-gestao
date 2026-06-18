@@ -14,9 +14,9 @@ const RELATORIOS = [
   { key: 'estoque_completo', label: 'Estoque Completo (todos)',    desc: 'Todos os produtos cadastrados, inclusive os zerados' },
   { key: 'aplicacoes',  label: 'Aplicações por Período',     desc: 'Histórico de aplicações com defensivos e doses' },
   { key: 'aplicacoes_fazenda', label: 'Aplicações por Fazenda (completo)', desc: 'Detalhado por fazenda: talhões, produtos, pragas, rankings e carência' },
-  { key: 'compras',     label: 'Histórico de Compras',       desc: 'NFs, fornecedores, valores investidos' },
-  { key: 'executivo',   label: 'Relatório Executivo',        desc: 'Custo por fazenda, custo/ha, defensivos mais usados' },
-  { key: 'custo_talhao',label: 'Custo por Talhão',           desc: 'Quanto foi gasto em defensivos em cada talhão, com custo por hectare' },
+  { key: 'compras',     label: 'Histórico de Compras',       desc: 'NFs, fornecedores, valores investidos', financeiro: true },
+  { key: 'executivo',   label: 'Relatório Executivo',        desc: 'Custo por fazenda, custo/ha, defensivos mais usados', financeiro: true },
+  { key: 'custo_talhao',label: 'Custo por Talhão',           desc: 'Quanto foi gasto em defensivos em cada talhão, com custo por hectare', financeiro: true },
 ]
 
 export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: FazSimple[] }) {
@@ -140,9 +140,9 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
         </CardContent>
       </Card>
 
-      {/* Lista de relatórios */}
+      {/* Lista de relatórios (campo não vê os financeiros) */}
       <div className="grid gap-3">
-        {RELATORIOS.map(r => (
+        {RELATORIOS.filter(r => !r.financeiro || role === 'admin' || role === 'viewer').map(r => (
           <Card key={r.key} className="hover:border-primary/40 transition-colors">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">

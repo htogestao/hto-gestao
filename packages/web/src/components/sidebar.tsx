@@ -27,7 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/compras',          label: 'Compras (NFs)',   icon: ShoppingCart,   fieldHidden: true },
   { href: '/aplicacoes',       label: 'Aplicações',      icon: Tractor },
   { href: '/movimentacoes',    label: 'Movimentações',   icon: ArrowLeftRight },
-  { href: '/relatorios',       label: 'Relatórios',      icon: FileText,       fieldHidden: true },
+  { href: '/relatorios',       label: 'Relatórios',      icon: FileText },
   { href: '/importar',         label: 'Importar Excel',  icon: Upload,         adminOnly: true },
   { href: '/exportar',         label: 'Exportar Excel',  icon: Download,       fieldHidden: true },
   { href: '/inventario',       label: 'Inventário Físico', icon: ClipboardList },
