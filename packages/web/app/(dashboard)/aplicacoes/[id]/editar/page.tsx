@@ -19,7 +19,8 @@ export default async function EditarAplicacaoPage({ params }: { params: { id: st
     supabase.from('aplicacoes')
       .select(`
         id, data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas, observacoes,
-        fazenda_id, talhao_id, responsavel_id,
+        fazenda_id, talhao_id, responsavel_id, vazao_l_ha,
+        talhoes_vinculados:aplicacao_talhoes(talhao_id),
         itens:aplicacao_itens(
           id, defensivo_id, lote_id, quantidade_usada, quantidade_sobrou,
           dose_por_hectare, calda_total_l
