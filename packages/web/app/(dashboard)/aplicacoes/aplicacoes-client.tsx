@@ -199,8 +199,9 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
                           <th className="text-left pb-2">Defensivo</th>
                           <th className="text-left pb-2">NF/Lote</th>
                           <th className="text-right pb-2">Dose/ha</th>
-                          <th className="text-right pb-2">Qtd Usada</th>
-                          <th className="text-right pb-2">Sobrou</th>
+                          <th className="text-right pb-2">Retirada</th>
+                          <th className="text-right pb-2">Sobra</th>
+                          <th className="text-right pb-2">Consumida</th>
                           <th className="text-right pb-2">Calda (L)</th>
                         </tr>
                       </thead>
@@ -215,8 +216,11 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
                             <td className="py-1.5 text-right font-mono">
                               {formatarNumero(it.quantidade_usada, 1)} {it.defensivo?.unidade}
                             </td>
-                            <td className="py-1.5 text-right font-mono">
+                            <td className="py-1.5 text-right font-mono text-blue-600">
                               {formatarNumero(it.quantidade_sobrou, 1)} {it.defensivo?.unidade}
+                            </td>
+                            <td className="py-1.5 text-right font-mono font-semibold">
+                              {formatarNumero(Math.max(0, it.quantidade_usada - it.quantidade_sobrou), 1)} {it.defensivo?.unidade}
                             </td>
                             <td className="py-1.5 text-right font-mono">
                               {it.calda_total_l ? formatarNumero(it.calda_total_l, 0) : '—'}
