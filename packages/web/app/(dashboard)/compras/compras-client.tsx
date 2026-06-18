@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatarData, formatarMoeda, formatarNumero, diasParaVencer, statusVencimentoBadge, cn } from '@/lib/utils'
 import { CLASSE_LABELS } from '@agro/shared'
-import { Plus, Search, X, Check, ShoppingCart, PackagePlus, Pencil } from 'lucide-react'
+import { Plus, Search, X, Check, ShoppingCart, PackagePlus, Pencil, Trash2 } from 'lucide-react'
 
 interface Lote {
   id: string; numero_nf: string | null; fornecedor: string | null
@@ -46,6 +46,28 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
   const [form, setForm]     = useState(FORM_DEFAULT)
   const [saving, setSaving] = useState(false)
   const [erro,  setErro]    = useState('')
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
+
+  async function excluirLote(l: Lote) {
+    if (!confirm(`Excluir esta entrada de ${l.defensivo?.nome_comercial ?? 'produto'} (saldo ${l.quantidade_atual} ${l.defensivo?.unidade ?? ''})?`)) return
+    setErro(''); setExcluindoId(l.id)
+
+    let { error } = await supabase.from('lotes').delete().eq('id', l.id)
+
+    if (error) {
+      // Lote tem movimentações/aplicações vinculadas
+      const ok = confirm('Esta entrada tem movimentações vinculadas. Excluir mesmo assim? (remove as movimentações ligadas a ela; aplicações são preservadas)')
+      if (!ok) { setExcluindoId(null); return }
+      await supabase.from('aplicacao_itens').update({ lote_id: null }).eq('lote_id', l.id)
+      await supabase.from('movimentacoes').delete().eq('lote_id', l.id)
+      const res = await supabase.from('lotes').delete().eq('id', l.id)
+      error = res.error
+    }
+
+    if (error) { setErro('Erro ao excluir entrada: ' + error.message); setExcluindoId(null); return }
+    setLotes(prev => prev.filter(x => x.id !== l.id))
+    setExcluindoId(null)
+  }
 
   // Cadastro inline de produto novo
   const [novoProd,    setNovoProd]   = useState(false)
@@ -283,9 +305,19 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                       <td className="p-3 text-muted-foreground">{formatarData(l.data_compra)}</td>
                       {canEdit && (
                         <td className="p-3 text-center">
-                          <Button variant="ghost" size="sm" onClick={() => abrirEditar(l)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => abrirEditar(l)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost" size="sm"
+                              disabled={excluindoId === l.id}
+                              onClick={() => excluirLote(l)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </td>
                       )}
                     </tr>
