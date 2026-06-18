@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Trash2, ArrowLeft, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, AlertTriangle, MapPin } from 'lucide-react'
 
 interface Fazenda   { id: string; nome: string }
 interface Talhao    { id: string; nome: string; fazenda_id: string; area_ha: number | null }
@@ -27,6 +27,7 @@ interface Aplicacao {
   area_aplicada_ha: number | null; praga_alvo: string | null
   condicoes_climaticas: string | null; observacoes: string | null
   fazenda_id: string; talhao_id: string
+  talhoes_vinculados?: { talhao_id: string }[]
   itens: {
     id: string; defensivo_id: string; lote_id: string | null
     quantidade_usada: number; quantidade_sobrou: number
@@ -42,7 +43,12 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
   const router   = useRouter()
 
   const [fazendaId, setFazendaId] = useState(aplicacao.fazenda_id)
-  const [talhaoId,  setTalhaoId]  = useState(aplicacao.talhao_id)
+  // Talhões vinculados (multi). Se não houver vínculos, usa o talhão único antigo.
+  const [talhoesSel, setTalhoesSel] = useState<string[]>(
+    aplicacao.talhoes_vinculados && aplicacao.talhoes_vinculados.length > 0
+      ? aplicacao.talhoes_vinculados.map(t => t.talhao_id)
+      : aplicacao.talhao_id ? [aplicacao.talhao_id] : []
+  )
   const [data,      setData]      = useState(aplicacao.data)
   const [area,      setArea]      = useState(String(aplicacao.area_aplicada_ha ?? ''))
   const [praga,     setPraga]     = useState(aplicacao.praga_alvo ?? '')
@@ -69,6 +75,13 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
 
   const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
 
+  function toggleTalhao(id: string) {
+    setTalhoesSel(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+  function toggleTodos() {
+    setTalhoesSel(talhoesSel.length === talhoesFazenda.length ? [] : talhoesFazenda.map(t => t.id))
+  }
+
   function atualizarItem(i: number, campo: keyof Item, valor: string) {
     setItens(prev => prev.map((it, idx) => idx === i ? { ...it, [campo]: valor } : it))
   }
@@ -91,7 +104,7 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
   }
 
   async function salvar() {
-    if (!fazendaId || !talhaoId || !data) { setErro('Preencha fazenda, talhão e data.'); return }
+    if (!fazendaId || talhoesSel.length === 0 || !data) { setErro('Preencha fazenda, ao menos um talhão e data.'); return }
     if (itens.some(it => !it.defensivo_id || !it.quantidade_usada)) {
       setErro('Preencha defensivo e quantidade usada em todos os itens.'); return
     }
@@ -101,7 +114,7 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
       const { error: errAplic } = await supabase
         .from('aplicacoes')
         .update({
-          fazenda_id: fazendaId, talhao_id: talhaoId,
+          fazenda_id: fazendaId, talhao_id: talhoesSel[0],
           data, status,
           area_aplicada_ha: area ? parseFloat(area) : null,
           praga_alvo: praga || null,
@@ -111,6 +124,16 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
         .eq('id', aplicacao.id)
 
       if (errAplic) throw errAplic
+
+      // Sincroniza os talhões vinculados
+      await supabase.from('aplicacao_talhoes').delete().eq('aplicacao_id', aplicacao.id)
+      const vinculos = talhoesSel.map(tid => ({
+        aplicacao_id: aplicacao.id,
+        talhao_id:    tid,
+        area_ha:      talhoesFazenda.find(t => t.id === tid)?.area_ha ?? null,
+      }))
+      const { error: errVinc } = await supabase.from('aplicacao_talhoes').insert(vinculos)
+      if (errVinc) throw errVinc
 
       // Remove todos os itens antigos e re-insere
       const { error: errDel } = await supabase
@@ -197,7 +220,7 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
             <label className="text-sm font-medium">Fazenda *</label>
             <select
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={fazendaId} onChange={e => { setFazendaId(e.target.value); setTalhaoId('') }}
+              value={fazendaId} onChange={e => { setFazendaId(e.target.value); setTalhoesSel([]) }}
             >
               <option value="">Selecione...</option>
               {fazendas.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
@@ -205,16 +228,41 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
           </div>
 
           <div>
-            <label className="text-sm font-medium">Talhão *</label>
-            <select
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={talhaoId} onChange={e => setTalhaoId(e.target.value)}
-            >
-              <option value="">Selecione...</option>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-medium">
+                Talhões * <span className="font-normal text-muted-foreground">(todos os aplicados)</span>
+              </label>
+              {talhoesFazenda.length > 0 && (
+                <button type="button" onClick={toggleTodos} className="text-xs text-primary hover:underline">
+                  {talhoesSel.length === talhoesFazenda.length ? 'Desmarcar todos' : 'Selecionar todos'}
+                </button>
+              )}
+            </div>
+            <div className="border rounded-md divide-y max-h-56 overflow-y-auto">
               {talhoesFazenda.map(t => (
-                <option key={t.id} value={t.id}>{t.nome}{t.area_ha ? ` (${t.area_ha} ha)` : ''}</option>
+                <label
+                  key={t.id}
+                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
+                    talhoesSel.includes(t.id) ? 'bg-primary/5' : 'hover:bg-muted/30'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={talhoesSel.includes(t.id)}
+                    onChange={() => toggleTalhao(t.id)}
+                    className="h-4 w-4 rounded"
+                  />
+                  <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="flex-1 text-sm">{t.nome}</span>
+                  {t.area_ha != null && (
+                    <span className="text-xs text-muted-foreground tabular-nums">{t.area_ha} ha</span>
+                  )}
+                </label>
               ))}
-            </select>
+            </div>
+            {talhoesSel.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">{talhoesSel.length} talhão(ões) selecionado(s)</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
