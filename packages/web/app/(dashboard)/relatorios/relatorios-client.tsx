@@ -13,6 +13,7 @@ const RELATORIOS = [
   { key: 'estoque',          label: 'Estoque Atual (com saldo)',   desc: 'Apenas os produtos que têm saldo em estoque' },
   { key: 'estoque_completo', label: 'Estoque Completo (todos)',    desc: 'Todos os produtos cadastrados, inclusive os zerados' },
   { key: 'aplicacoes',  label: 'Aplicações por Período',     desc: 'Histórico de aplicações com defensivos e doses' },
+  { key: 'aplicacoes_fazenda', label: 'Aplicações por Fazenda (completo)', desc: 'Detalhado por fazenda: talhões, produtos, pragas, rankings e carência' },
   { key: 'compras',     label: 'Histórico de Compras',       desc: 'NFs, fornecedores, valores investidos' },
   { key: 'executivo',   label: 'Relatório Executivo',        desc: 'Custo por fazenda, custo/ha, defensivos mais usados' },
   { key: 'custo_talhao',label: 'Custo por Talhão',           desc: 'Quanto foi gasto em defensivos em cada talhão, com custo por hectare' },
@@ -59,6 +60,24 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
         if (fazenda !== 'todas') q.eq('fazenda_id', fazenda)
         const { data: aplic } = await q
         imprimirAplicacoes(aplic ?? [], dataIni, dataFim)
+
+      } else if (tipo === 'aplicacoes_fazenda') {
+        let q = supabase2.from('aplicacoes')
+          .select(`
+            data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas, vazao_l_ha,
+            fazenda:fazendas(nome),
+            talhao:talhoes(nome, area_ha),
+            talhoes_vinculados:aplicacao_talhoes(talhao:talhoes(nome, area_ha)),
+            responsavel:profiles(nome),
+            itens:aplicacao_itens(
+              quantidade_usada, quantidade_sobrou, dose_por_hectare,
+              defensivo:defensivos(nome_comercial, unidade, classe, carencia_dias)
+            )
+          `)
+          .gte('data', dataIni).lte('data', dataFim).order('data', { ascending: true })
+        if (fazenda !== 'todas') q = q.eq('fazenda_id', fazenda)
+        const { data: aplic } = await q
+        imprimirAplicacoesFazenda((aplic ?? []) as any[], dataIni, dataFim)
 
       } else if (tipo === 'compras') {
         const { data: lotes } = await supabase2.from('lotes')
@@ -218,6 +237,110 @@ function imprimirAplicacoes(aplic: Record<string,unknown>[], ini: string, fim: s
       <thead><tr><th>Data</th><th>Fazenda</th><th>Talhão</th><th class="right">Área</th><th>Defensivos</th><th>Praga</th><th>Responsável</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`)
+}
+
+function imprimirAplicacoesFazenda(aplic: any[], ini: string, fim: string) {
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+
+  const talsDe = (a: any): { nome: string; area_ha: number | null }[] => {
+    if (a.talhoes_vinculados?.length > 0)
+      return a.talhoes_vinculados.map((v: any) => v.talhao).filter(Boolean)
+    return a.talhao ? [a.talhao] : []
+  }
+
+  // Agrupa por fazenda
+  const grupos: Record<string, any[]> = {}
+  for (const a of aplic) {
+    const fz = a.fazenda?.nome ?? 'Sem fazenda'
+    ;(grupos[fz] ||= []).push(a)
+  }
+
+  let html = `<h1>Relatório de Aplicações por Fazenda</h1>
+    <div class="sub">Período ${formatarData(ini)} a ${formatarData(fim)} · Gerado em ${new Date().toLocaleString('pt-BR')} · ${aplic.length} aplicações</div>`
+
+  if (aplic.length === 0) html += `<p>Nenhuma aplicação no período.</p>`
+
+  for (const [fz, apps] of Object.entries(grupos)) {
+    const talhoesSet = new Set<string>()
+    let areaTotal = 0
+    const pragaCount: Record<string, number> = {}
+    const produtoVol: Record<string, { qtd: number; un: string }> = {}
+    const carencia: { talhao: string; produto: string; liberado: Date }[] = []
+
+    for (const a of apps) {
+      const tals = talsDe(a)
+      tals.forEach(t => talhoesSet.add(t.nome))
+      areaTotal += (a.area_aplicada_ha ?? tals.reduce((s, t) => s + (t.area_ha ?? 0), 0))
+      if (a.praga_alvo) pragaCount[a.praga_alvo] = (pragaCount[a.praga_alvo] ?? 0) + 1
+      for (const it of (a.itens ?? [])) {
+        const consumida = Math.max(0, it.quantidade_usada - (it.quantidade_sobrou ?? 0))
+        const nome = it.defensivo?.nome_comercial ?? '—'
+        const un = it.defensivo?.unidade ?? ''
+        produtoVol[nome] ||= { qtd: 0, un }
+        produtoVol[nome].qtd += consumida
+        const car = it.defensivo?.carencia_dias
+        if (car) {
+          const liberado = new Date(new Date(a.data + 'T00:00:00').getTime() + car * 86400000)
+          if (liberado > hoje) tals.forEach(t => carencia.push({ talhao: t.nome, produto: nome, liberado }))
+        }
+      }
+    }
+
+    const topPragas   = Object.entries(pragaCount).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    const topProdutos = Object.entries(produtoVol).sort((a, b) => b[1].qtd - a[1].qtd).slice(0, 8)
+
+    html += `<div class="section">🚜 Fazenda: ${fz}</div>
+      <p><strong>${apps.length}</strong> aplicações · <strong>${formatarNumero(areaTotal, 1)} ha</strong> tratados ·
+      <strong>${talhoesSet.size}</strong> talhões · Pragas: ${topPragas.map(p => p[0]).join(', ') || '—'}</p>`
+
+    // Lista detalhada
+    for (const a of apps) {
+      const tals = talsDe(a)
+      const talStr = tals.map(t => `${t.nome}${t.area_ha ? ` (${t.area_ha} ha)` : ''}`).join(', ') || '—'
+      const itRows = (a.itens ?? []).map((it: any) => {
+        const consumida = Math.max(0, it.quantidade_usada - (it.quantidade_sobrou ?? 0))
+        return `<tr>
+          <td>${it.defensivo?.nome_comercial ?? '—'}</td>
+          <td>${String(it.defensivo?.classe ?? '').replace(/_/g, ' ')}</td>
+          <td class="right">${it.dose_por_hectare ? formatarNumero(it.dose_por_hectare, 3) + ' ' + (it.defensivo?.unidade ?? '') + '/ha' : '—'}</td>
+          <td class="right">${formatarNumero(consumida, 1)} ${it.defensivo?.unidade ?? ''}</td>
+          <td class="center">${it.defensivo?.carencia_dias != null ? it.defensivo.carencia_dias + 'd' : '—'}</td>
+        </tr>`
+      }).join('')
+      html += `<div style="margin-top:12px;font-size:11px">
+          <strong>${formatarData(a.data)}</strong> · Talhões: ${talStr} · ${formatarNumero(a.area_aplicada_ha ?? 0, 1)} ha
+          · Praga: ${a.praga_alvo ?? '—'} · Vazão: ${a.vazao_l_ha ? a.vazao_l_ha + ' L/ha' : '—'}
+          · ${a.responsavel?.nome ?? '—'}${a.condicoes_climaticas ? ' · ' + a.condicoes_climaticas : ''}
+        </div>
+        <table>
+          <thead><tr><th>Produto</th><th>Classe</th><th class="right">Dose/ha</th><th class="right">Consumido</th><th class="center">Carência</th></tr></thead>
+          <tbody>${itRows || '<tr><td colspan="5">Sem produtos</td></tr>'}</tbody>
+        </table>`
+    }
+
+    // Rankings
+    html += `<div class="section">Resumo — ${fz}</div>
+      <table>
+        <thead><tr><th>Produto mais usado</th><th class="right">Total consumido</th></tr></thead>
+        <tbody>${topProdutos.map(p => `<tr><td>${p[0]}</td><td class="right">${formatarNumero(p[1].qtd, 1)} ${p[1].un}</td></tr>`).join('') || '<tr><td>—</td><td class="right">—</td></tr>'}</tbody>
+      </table>
+      <table>
+        <thead><tr><th>Praga / Alvo</th><th class="right">Nº de aplicações</th></tr></thead>
+        <tbody>${topPragas.map(p => `<tr><td>${p[0]}</td><td class="right">${p[1]}</td></tr>`).join('') || '<tr><td>—</td><td class="right">0</td></tr>'}</tbody>
+      </table>`
+
+    // Alertas de carência
+    if (carencia.length > 0) {
+      const ordenado = carencia.sort((a, b) => b.liberado.getTime() - a.liberado.getTime())
+      html += `<div class="section">⚠️ Talhões em carência (NÃO colher ainda)</div>
+        <table>
+          <thead><tr><th>Talhão</th><th>Produto</th><th>Liberado a partir de</th></tr></thead>
+          <tbody>${ordenado.map(c => `<tr><td>${c.talhao}</td><td>${c.produto}</td><td><span class="badge alerta">${c.liberado.toLocaleDateString('pt-BR')}</span></td></tr>`).join('')}</tbody>
+        </table>`
+    }
+  }
+
+  abrirJanelaPDF('Aplicações por Fazenda', html)
 }
 
 function imprimirCompras(lotes: Record<string,unknown>[], ini: string, fim: string) {
