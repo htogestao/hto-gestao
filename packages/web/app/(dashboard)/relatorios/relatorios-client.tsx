@@ -27,6 +27,9 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
   const [loading, setLoading] = useState<string | null>(null)
 
   async function gerarPDF(tipo: string) {
+    // Abre a janela JÁ no clique (antes do await) — senão o navegador bloqueia o pop-up, sobretudo no celular
+    pdfWin = window.open('', '_blank')
+    if (pdfWin) pdfWin.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:Arial,sans-serif;padding:24px;color:#555">Gerando relatório, aguarde…</body></html>')
     setLoading(tipo)
     try {
       const supabase2 = createClient()
@@ -103,6 +106,13 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
           .gte('data', dataIni).lte('data', dataFim).eq('status', 'encerrada')
         imprimirExecutivo(aplic ?? [], dataIni, dataFim)
       }
+    } catch (e: any) {
+      if (pdfWin) {
+        pdfWin.document.body.innerHTML = `<p style="font-family:Arial,sans-serif;padding:24px;color:#b91c1c">Erro ao gerar o relatório: ${e?.message ?? e}. Feche esta janela e tente de novo.</p>`
+        pdfWin = null
+      } else {
+        alert('Erro ao gerar o relatório: ' + (e?.message ?? e))
+      }
     } finally {
       setLoading(null)
     }
@@ -167,8 +177,13 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
 }
 
 // ─── Helpers de impressão (window.print com HTML inline) ─────────────────────
+// Janela aberta no clique (em gerarPDF) e reutilizada aqui, para não ser bloqueada como pop-up.
+let pdfWin: Window | null = null
 function abrirJanelaPDF(titulo: string, html: string) {
-  const w = window.open('', '_blank', 'width=900,height=700')!
+  const w = pdfWin ?? window.open('', '_blank', 'width=900,height=700')
+  pdfWin = null
+  if (!w) { alert('Não foi possível abrir o relatório. Habilite os pop-ups para este site e tente novamente.'); return }
+  w.document.open()
   w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
     <meta charset="utf-8"/>
     <title>${titulo}</title>
