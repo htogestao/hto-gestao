@@ -12,6 +12,7 @@ interface FazSimple { id: string; nome: string }
 const RELATORIOS = [
   { key: 'estoque',          label: 'Estoque Atual (com saldo)',   desc: 'Apenas os produtos que têm saldo em estoque' },
   { key: 'estoque_completo', label: 'Estoque Completo (todos)',    desc: 'Todos os produtos cadastrados, inclusive os zerados' },
+  { key: 'vencimentos',      label: 'Vencidos e a Vencer',         desc: 'Produtos vencidos ou que vencem nos próximos 90 dias' },
   { key: 'aplicacoes',  label: 'Aplicações por Período',     desc: 'Histórico de aplicações com defensivos e doses' },
   { key: 'aplicacoes_fazenda', label: 'Aplicações por Fazenda (completo)', desc: 'Detalhado por fazenda: talhões, produtos, pragas, rankings e carência' },
   { key: 'compras',     label: 'Histórico de Compras',       desc: 'NFs, fornecedores, valores investidos', financeiro: true },
@@ -63,6 +64,14 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
         if (fazenda !== 'todas') q.eq('fazenda_id', fazenda)
         const { data: aplic } = await q
         imprimirAplicacoes(aplic ?? [], dataIni, dataFim)
+
+      } else if (tipo === 'vencimentos') {
+        const { data: lotes } = await supabase2.from('lotes')
+          .select('numero_nf, quantidade_atual, data_vencimento, data_fabricacao, fornecedor, defensivo:defensivos(nome_comercial, unidade, empresa)')
+          .gt('quantidade_atual', 0)
+          .not('data_vencimento', 'is', null)
+          .order('data_vencimento', { ascending: true })
+        imprimirVencimentos((lotes ?? []) as any[])
 
       } else if (tipo === 'aplicacoes_fazenda') {
         let q = supabase2.from('aplicacoes')
@@ -252,6 +261,48 @@ function imprimirAplicacoes(aplic: Record<string,unknown>[], ini: string, fim: s
       <thead><tr><th>Data</th><th>Fazenda</th><th>Talhão</th><th class="right">Área</th><th>Defensivos</th><th>Praga</th><th>Responsável</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`)
+}
+
+function imprimirVencimentos(lotes: any[]) {
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+  const dias = (v: string) => Math.floor((new Date(v + 'T00:00:00').getTime() - hoje.getTime()) / 86400000)
+
+  // Considera vencidos + os que vencem em até 90 dias
+  const relevantes = lotes
+    .map(l => ({ ...l, _dias: dias(l.data_vencimento) }))
+    .filter(l => l._dias <= 90)
+    .sort((a, b) => a._dias - b._dias)
+
+  const vencidos = relevantes.filter(l => l._dias < 0)
+  const aVencer  = relevantes.filter(l => l._dias >= 0)
+
+  const linha = (l: any) => {
+    const def = l.defensivo
+    const cls = l._dias < 0 ? 'alerta' : l._dias <= 30 ? 'alerta' : 'ok'
+    const txt = l._dias < 0 ? `Vencido há ${Math.abs(l._dias)} dias` : `Vence em ${l._dias} dias`
+    return `<tr>
+      <td>${def?.nome_comercial ?? '—'}</td>
+      <td>${def?.empresa ?? '—'}</td>
+      <td>${l.numero_nf ?? 'S/NF'}</td>
+      <td class="right">${formatarNumero(l.quantidade_atual, 1)} ${def?.unidade ?? ''}</td>
+      <td class="center">${formatarData(l.data_vencimento)}</td>
+      <td class="center"><span class="badge ${cls}">${txt}</span></td>
+    </tr>`
+  }
+
+  const tabela = (titulo: string, arr: any[]) => arr.length === 0 ? '' : `
+    <div class="section">${titulo} (${arr.length})</div>
+    <table>
+      <thead><tr><th>Produto</th><th>Empresa</th><th>NF</th><th class="right">Saldo</th><th class="center">Vencimento</th><th class="center">Situação</th></tr></thead>
+      <tbody>${arr.map(linha).join('')}</tbody>
+    </table>`
+
+  abrirJanelaPDF('Vencidos e a Vencer', `
+    <h1>Produtos Vencidos e a Vencer</h1>
+    <div class="sub">Gerado em ${new Date().toLocaleString('pt-BR')} · ${vencidos.length} vencido(s) · ${aVencer.length} a vencer (90 dias)</div>
+    ${relevantes.length === 0 ? '<p>Nenhum produto vencido ou vencendo nos próximos 90 dias. 👍</p>' : ''}
+    ${tabela('🔴 VENCIDOS — descartar/não usar', vencidos)}
+    ${tabela('🟡 A VENCER — usar com prioridade', aVencer)}`)
 }
 
 function imprimirAplicacoesFazenda(aplic: any[], ini: string, fim: string) {
