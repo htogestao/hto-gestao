@@ -53,15 +53,24 @@ export function FazendasClient({ fazendas: inicial, role }: { fazendas: Fazenda[
   const [form, setForm] = useState<Fazenda>(EMPTY)
 
   function abrirModal(f: Fazenda) { setForm({ ...f }); setModal(f) }
+  function abrirNova() { setForm({ ...EMPTY }); setModal(EMPTY) }
   function fecharModal() { setModal(null) }
   function set(k: keyof Fazenda, v: string) { setForm(p => ({ ...p, [k]: v || null })) }
 
   async function salvar() {
     setSaving(true)
     const { id, talhoes: _, created_at: __, ...dados } = form
-    const { data, error } = await supabase.from('fazendas').update(dados).eq('id', id).select().single()
-    if (!error && data) {
+    if (id) {
+      // Editar
+      const { data, error } = await supabase.from('fazendas').update(dados).eq('id', id).select().single()
+      if (error) { alert('Erro ao salvar: ' + error.message); setSaving(false); return }
       setFazendas(prev => prev.map(f => f.id === id ? { ...f, ...data } : f))
+      fecharModal()
+    } else {
+      // Criar nova
+      const { data, error } = await supabase.from('fazendas').insert(dados).select().single()
+      if (error) { alert('Erro ao criar: ' + error.message); setSaving(false); return }
+      setFazendas(prev => [...prev, { ...(data as Fazenda), talhoes: [] }].sort((a, b) => a.nome.localeCompare(b.nome)))
       fecharModal()
     }
     setSaving(false)
@@ -91,7 +100,7 @@ export function FazendasClient({ fazendas: inicial, role }: { fazendas: Fazenda[
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between p-5 border-b">
-            <h2 className="text-lg font-semibold">Editar Fazenda</h2>
+            <h2 className="text-lg font-semibold">{form.id ? 'Editar Fazenda' : 'Nova Fazenda'}</h2>
             <button onClick={fecharModal}><X className="h-5 w-5 text-gray-500" /></button>
           </div>
           <div className="p-5 space-y-3">
@@ -139,6 +148,10 @@ export function FazendasClient({ fazendas: inicial, role }: { fazendas: Fazenda[
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <Button onClick={abrirNova}>
+              <Plus className="h-4 w-4" />
+              Nova Fazenda
+            </Button>
             <Button variant="outline" asChild>
               <Link href="/importar?tipo=inventario">
                 <Upload className="h-4 w-4" />
