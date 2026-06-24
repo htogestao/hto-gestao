@@ -43,7 +43,7 @@ const EMPTY: Fazenda = {
 }
 
 export function FazendasClient({ fazendas: inicial, role }: { fazendas: Fazenda[]; role: string }) {
-  const isAdmin = role === 'admin'
+  const isAdmin = role === 'admin' || role === 'viewer' || role === 'field'
   const supabase = createClient()
   const [fazendas, setFazendas] = useState(inicial)
   const [busca, setBusca] = useState('')
