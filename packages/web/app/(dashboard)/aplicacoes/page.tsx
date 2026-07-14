@@ -13,6 +13,8 @@ export default async function AplicacoesPage() {
       .select(`
         id, data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas,
         observacoes, created_at, vazao_l_ha,
+        operador, equipamento, frota, tipo_aplicacao, temperatura, umidade, velocidade_vento,
+        hora_inicio, hora_fim,
         cultura:culturas(id, nome),
         fazenda:fazendas(id, nome),
         talhao:talhoes(id, nome, area_ha),

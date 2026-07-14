@@ -21,6 +21,8 @@ export default async function EditarAplicacaoPage({ params }: { params: { id: st
       .select(`
         id, data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas, observacoes,
         fazenda_id, talhao_id, responsavel_id, vazao_l_ha, cultura_id,
+        operador, equipamento, frota, tipo_aplicacao, temperatura, umidade, velocidade_vento,
+        hora_inicio, hora_fim,
         talhoes_vinculados:aplicacao_talhoes(talhao_id),
         itens:aplicacao_itens(
           id, defensivo_id, lote_id, quantidade_usada, quantidade_sobrou,

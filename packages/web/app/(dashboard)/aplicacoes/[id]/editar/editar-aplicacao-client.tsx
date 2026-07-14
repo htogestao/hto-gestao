@@ -28,6 +28,9 @@ interface Aplicacao {
   area_aplicada_ha: number | null; praga_alvo: string | null
   condicoes_climaticas: string | null; observacoes: string | null
   fazenda_id: string; talhao_id: string; cultura_id: string
+  operador: string | null; equipamento: string | null; frota: string | null
+  tipo_aplicacao: string | null; temperatura: number | null; umidade: number | null
+  velocidade_vento: number | null; hora_inicio: string | null; hora_fim: string | null
   talhoes_vinculados?: { talhao_id: string }[]
   itens: {
     id: string; defensivo_id: string; lote_id: string | null
@@ -57,6 +60,16 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
   const [clima,     setClima]     = useState(aplicacao.condicoes_climaticas ?? '')
   const [obs,       setObs]       = useState(aplicacao.observacoes ?? '')
   const [status,    setStatus]    = useState<'em_andamento' | 'encerrada'>(aplicacao.status as any)
+
+  const [operador,        setOperador]        = useState(aplicacao.operador ?? '')
+  const [equipamento,     setEquipamento]     = useState(aplicacao.equipamento ?? '')
+  const [frota,           setFrota]           = useState(aplicacao.frota ?? '')
+  const [tipoAplicacao,   setTipoAplicacao]   = useState(aplicacao.tipo_aplicacao ?? '')
+  const [temperatura,     setTemperatura]     = useState(aplicacao.temperatura != null ? String(aplicacao.temperatura) : '')
+  const [umidade,         setUmidade]         = useState(aplicacao.umidade != null ? String(aplicacao.umidade) : '')
+  const [velocidadeVento, setVelocidadeVento] = useState(aplicacao.velocidade_vento != null ? String(aplicacao.velocidade_vento) : '')
+  const [horaInicio,      setHoraInicio]      = useState(aplicacao.hora_inicio ?? '')
+  const [horaFim,         setHoraFim]         = useState(aplicacao.hora_fim ?? '')
   const [itens,     setItens]     = useState<Item[]>(
     aplicacao.itens.length > 0
       ? aplicacao.itens.map(it => ({
@@ -123,6 +136,15 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
           praga_alvo: praga || null,
           condicoes_climaticas: clima || null,
           observacoes: obs || null,
+          operador:          operador || null,
+          equipamento:       equipamento || null,
+          frota:             frota || null,
+          tipo_aplicacao:    tipoAplicacao || null,
+          temperatura:       temperatura ? parseFloat(temperatura) : null,
+          umidade:           umidade ? parseFloat(umidade) : null,
+          velocidade_vento:  velocidadeVento ? parseFloat(velocidadeVento) : null,
+          hora_inicio:       horaInicio || null,
+          hora_fim:          horaFim || null,
         })
         .eq('id', aplicacao.id)
 
@@ -292,15 +314,59 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-medium">Status</label>
-            <select
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={status} onChange={e => setStatus(e.target.value as any)}
-            >
-              <option value="encerrada">Encerrada</option>
-              <option value="em_andamento">Em Andamento</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Status</label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={status} onChange={e => setStatus(e.target.value as any)}
+              >
+                <option value="encerrada">Encerrada</option>
+                <option value="em_andamento">Em Andamento</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Tipo de Aplicação</label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={tipoAplicacao} onChange={e => setTipoAplicacao(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                <option value="barra_total">Barra Total</option>
+                <option value="pingente">Pingente</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-sm font-medium">Operador</label>
+              <Input className="mt-1" placeholder="Nome do operador"
+                value={operador} onChange={e => setOperador(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Equipamento</label>
+              <Input className="mt-1" placeholder="Ex: Pulverizador"
+                value={equipamento} onChange={e => setEquipamento(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Frota</label>
+              <Input className="mt-1" placeholder="Ex: Trator 01"
+                value={frota} onChange={e => setFrota(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Hora Início</label>
+              <Input type="time" className="mt-1"
+                value={horaInicio} onChange={e => setHoraInicio(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Hora Fim</label>
+              <Input type="time" className="mt-1"
+                value={horaFim} onChange={e => setHoraFim(e.target.value)} />
+            </div>
           </div>
 
           <div>
@@ -308,9 +374,27 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
             <Input className="mt-1" placeholder="Ex: Cigarrinha, Broca..." value={praga} onChange={e => setPraga(e.target.value)} />
           </div>
 
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-sm font-medium">Temp. (°C)</label>
+              <Input type="number" step="0.1" placeholder="Ex: 28"
+                className="mt-1" value={temperatura} onChange={e => setTemperatura(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Umidade (%)</label>
+              <Input type="number" step="1" min="0" max="100" placeholder="Ex: 65"
+                className="mt-1" value={umidade} onChange={e => setUmidade(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Vento (km/h)</label>
+              <Input type="number" step="0.1" min="0" placeholder="Ex: 8"
+                className="mt-1" value={velocidadeVento} onChange={e => setVelocidadeVento(e.target.value)} />
+            </div>
+          </div>
+
           <div>
-            <label className="text-sm font-medium">Condições Climáticas</label>
-            <Input className="mt-1" placeholder="Ex: Céu limpo, vento fraco..." value={clima} onChange={e => setClima(e.target.value)} />
+            <label className="text-sm font-medium">Obs. Climáticas</label>
+            <Input className="mt-1" placeholder="Anotações sobre o clima..." value={clima} onChange={e => setClima(e.target.value)} />
           </div>
 
           <div>

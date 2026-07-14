@@ -25,6 +25,9 @@ interface Aplicacao {
   id: string; data: string; status: string; area_aplicada_ha: number | null
   praga_alvo: string | null; condicoes_climaticas: string | null
   observacoes: string | null; vazao_l_ha: number | null
+  operador: string | null; equipamento: string | null; frota: string | null
+  tipo_aplicacao: string | null; temperatura: number | null; umidade: number | null
+  velocidade_vento: number | null; hora_inicio: string | null; hora_fim: string | null
   cultura: CulturaInfo | null
   fazenda: { id: string; nome: string } | null
   talhao: TalhaoInfo | null
@@ -213,11 +216,33 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
                       ))}
                     </div>
                   )}
+                  {(a.operador || a.equipamento || a.frota || a.tipo_aplicacao) && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      {a.operador && <span>Operador: <span className="font-medium text-foreground">{a.operador}</span></span>}
+                      {a.equipamento && <span>Equip.: <span className="font-medium text-foreground">{a.equipamento}</span></span>}
+                      {a.frota && <span>Frota: <span className="font-medium text-foreground">{a.frota}</span></span>}
+                      {a.tipo_aplicacao && <span>Tipo: <span className="font-medium text-foreground">{a.tipo_aplicacao === 'barra_total' ? 'Barra Total' : a.tipo_aplicacao === 'pingente' ? 'Pingente' : a.tipo_aplicacao}</span></span>}
+                    </div>
+                  )}
+                  {(a.hora_inicio || a.hora_fim) && (
+                    <p className="text-sm text-muted-foreground">
+                      Período: {a.hora_inicio ?? '—'} às {a.hora_fim ?? '—'}
+                    </p>
+                  )}
+                  {(a.temperatura != null || a.umidade != null || a.velocidade_vento != null) && (
+                    <p className="text-sm text-muted-foreground">
+                      {a.temperatura != null && `${a.temperatura}°C`}
+                      {a.temperatura != null && a.umidade != null && ' · '}
+                      {a.umidade != null && `${a.umidade}% umid.`}
+                      {(a.temperatura != null || a.umidade != null) && a.velocidade_vento != null && ' · '}
+                      {a.velocidade_vento != null && `${a.velocidade_vento} km/h vento`}
+                    </p>
+                  )}
                   {a.condicoes_climaticas && (
-                    <p className="text-sm text-muted-foreground">🌡️ {a.condicoes_climaticas}</p>
+                    <p className="text-sm text-muted-foreground">{a.condicoes_climaticas}</p>
                   )}
                   {a.observacoes && (
-                    <p className="text-sm text-muted-foreground">📝 {a.observacoes}</p>
+                    <p className="text-sm text-muted-foreground">{a.observacoes}</p>
                   )}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">

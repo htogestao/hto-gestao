@@ -100,9 +100,16 @@ export default async function DashboardPage() {
 
   // Valor total em estoque (só admin/viewer)
   const { data: lotes } = await supabase
-    .from('lotes').select('quantidade_atual, preco_unitario')
+    .from('lotes').select('quantidade_atual, preco_unitario, data_vencimento, defensivo:defensivos(nome_comercial, unidade)')
   const valorEstoque = lotes?.reduce((acc, l) =>
     acc + (l.quantidade_atual * (l.preco_unitario ?? 0)), 0) ?? 0
+
+  const hoje = new Date().toISOString().split('T')[0]
+  const lotesVencidos = (lotes ?? []).filter(l =>
+    l.data_vencimento && l.data_vencimento < hoje && l.quantidade_atual > 0 && l.preco_unitario
+  )
+  const prejuizoTotal = lotesVencidos.reduce((acc, l) =>
+    acc + (l.quantidade_atual * (l.preco_unitario ?? 0)), 0)
 
   return (
     <div className="p-6 space-y-6">
@@ -180,6 +187,58 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Card de Prejuízo — Produtos Vencidos */}
+      {prejuizoTotal > 0 && (
+        <Card className="border-red-300 bg-red-50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-red-700 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Prejuízo com Produtos Vencidos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-red-700">{formatarMoeda(prejuizoTotal)}</p>
+            <p className="text-xs text-red-600 mt-1 mb-3">
+              {lotesVencidos.length} lote(s) vencido(s) com estoque em mãos
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-red-200 text-xs font-medium text-red-600">
+                    <th className="text-left pb-2">Produto</th>
+                    <th className="text-right pb-2">Qtd</th>
+                    <th className="text-right pb-2">Valor Unit.</th>
+                    <th className="text-right pb-2">Perda</th>
+                    <th className="text-right pb-2">Vencimento</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lotesVencidos.map((l, i) => (
+                    <tr key={i} className="border-b border-red-100 last:border-0">
+                      <td className="py-1.5 font-medium text-red-900">
+                        {(l.defensivo as any)?.nome_comercial ?? '—'}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-red-800">
+                        {formatarNumero(l.quantidade_atual, 2)} {(l.defensivo as any)?.unidade ?? ''}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-red-800">
+                        {formatarMoeda(l.preco_unitario ?? 0)}
+                      </td>
+                      <td className="py-1.5 text-right font-mono font-semibold text-red-700">
+                        {formatarMoeda(l.quantidade_atual * (l.preco_unitario ?? 0))}
+                      </td>
+                      <td className="py-1.5 text-right text-red-600">
+                        {l.data_vencimento ? new Date(l.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Segunda linha de cards */}
       <div className="grid grid-cols-2 gap-4">
