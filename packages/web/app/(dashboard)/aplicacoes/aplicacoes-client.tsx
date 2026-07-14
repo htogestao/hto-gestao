@@ -19,10 +19,13 @@ interface AplicacaoItem {
 
 interface TalhaoInfo { id: string; nome: string; area_ha: number | null }
 
+interface CulturaInfo { id: string; nome: string }
+
 interface Aplicacao {
   id: string; data: string; status: string; area_aplicada_ha: number | null
   praga_alvo: string | null; condicoes_climaticas: string | null
   observacoes: string | null; vazao_l_ha: number | null
+  cultura: CulturaInfo | null
   fazenda: { id: string; nome: string } | null
   talhao: TalhaoInfo | null
   talhoes_vinculados: { talhao: TalhaoInfo | null }[]
@@ -30,17 +33,25 @@ interface Aplicacao {
   itens: AplicacaoItem[]
 }
 
-export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Aplicacao[]; role: string }) {
+const CULTURA_CORES: Record<string, string> = {
+  'Cana': 'bg-green-100 text-green-700',
+  'Soja': 'bg-yellow-100 text-yellow-700',
+  'Milho': 'bg-orange-100 text-orange-700',
+  'Mandioca': 'bg-purple-100 text-purple-700',
+}
+
+export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { aplicacoes: Aplicacao[]; role: string; culturas: CulturaInfo[] }) {
   const supabase = createClient()
   const router   = useRouter()
   const isAdmin  = role === 'admin'
   const podeExcluir = true // admin, viewer e field podem excluir (field só as próprias, via RLS)
 
-  const [aplicacoes,   setAplicacoes] = useState(inicial)
-  const [busca,        setBusca]      = useState('')
-  const [filtroStatus, setFiltro]     = useState('todos')
-  const [expandidas,   setExp]        = useState<Set<string>>(new Set())
-  const [deletandoId,  setDeletando]  = useState<string | null>(null)
+  const [aplicacoes,    setAplicacoes]  = useState(inicial)
+  const [busca,         setBusca]       = useState('')
+  const [filtroStatus,  setFiltro]      = useState('todos')
+  const [filtroCultura, setFiltroCult]  = useState('todas')
+  const [expandidas,    setExp]         = useState<Set<string>>(new Set())
+  const [deletandoId,   setDeletando]   = useState<string | null>(null)
 
   function getTalhoes(a: Aplicacao): TalhaoInfo[] {
     if (a.talhoes_vinculados?.length > 0)
@@ -55,7 +66,8 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
       tals.some(t => t.nome.toLowerCase().includes(busca.toLowerCase())) ||
       (a.praga_alvo ?? '').toLowerCase().includes(busca.toLowerCase())
     const matchStatus = filtroStatus === 'todos' || a.status === filtroStatus
-    return matchBusca && matchStatus
+    const matchCultura = filtroCultura === 'todas' || a.cultura?.id === filtroCultura
+    return matchBusca && matchStatus && matchCultura
   })
 
   const emAndamento = aplicacoes.filter(a => a.status === 'em_andamento').length
@@ -92,6 +104,16 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar fazenda, talhão, praga..." className="pl-8" value={busca} onChange={e => setBusca(e.target.value)} />
         </div>
+        {culturas.length > 1 && (
+          <select
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            value={filtroCultura}
+            onChange={e => setFiltroCult(e.target.value)}
+          >
+            <option value="todas">Todas culturas</option>
+            {culturas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        )}
         <div className="flex gap-2">
           {['todos','em_andamento','encerrada'].map(s => (
             <Button
@@ -135,6 +157,11 @@ export function AplicacoesClient({ aplicacoes: inicial, role }: { aplicacoes: Ap
                     <p className="font-semibold">{a.fazenda?.nome ?? '—'}</p>
                     <span className="text-muted-foreground">·</span>
                     <p className="text-sm">{talLabel}</p>
+                    {a.cultura && (
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', CULTURA_CORES[a.cultura.nome] ?? 'bg-gray-100 text-gray-700')}>
+                        {a.cultura.nome}
+                      </span>
+                    )}
                     {a.status === 'em_andamento'
                       ? <Badge variant="info">Em Andamento</Badge>
                       : <Badge variant="success">Encerrada</Badge>}

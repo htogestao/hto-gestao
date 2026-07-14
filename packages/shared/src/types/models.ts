@@ -57,6 +57,7 @@ export interface Defensivo {
 export interface Lote {
   id: string
   defensivo_id: string
+  cultura_id: string | null
   numero_nf: string | null
   fornecedor: string | null
   data_compra: string | null
@@ -86,11 +87,18 @@ export interface LoteFieldView {
   created_at: string
 }
 
+export interface Cultura {
+  id: string
+  nome: string
+  ativo: boolean
+}
+
 export interface Aplicacao {
   id: string
   data: string
   fazenda_id: string
   talhao_id: string
+  cultura_id: string
   area_aplicada_ha: number | null
   praga_alvo: string | null
   condicoes_climaticas: string | null
@@ -100,6 +108,7 @@ export interface Aplicacao {
   created_at: string
   fazenda?: Fazenda
   talhao?: Talhao
+  cultura?: Cultura
   responsavel?: Profile
   itens?: AplicacaoItem[]
 }

@@ -15,11 +15,12 @@ export default async function EditarAplicacaoPage({ params }: { params: { id: st
     { data: talhoes },
     { data: defensivos },
     { data: lotes },
+    { data: culturas },
   ] = await Promise.all([
     supabase.from('aplicacoes')
       .select(`
         id, data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas, observacoes,
-        fazenda_id, talhao_id, responsavel_id, vazao_l_ha,
+        fazenda_id, talhao_id, responsavel_id, vazao_l_ha, cultura_id,
         talhoes_vinculados:aplicacao_talhoes(talhao_id),
         itens:aplicacao_itens(
           id, defensivo_id, lote_id, quantidade_usada, quantidade_sobrou,
@@ -32,6 +33,7 @@ export default async function EditarAplicacaoPage({ params }: { params: { id: st
     supabase.from('talhoes').select('id, nome, fazenda_id, area_ha').order('nome'),
     supabase.from('defensivos').select('id, nome_comercial, unidade').order('nome_comercial'),
     supabase.from('lotes').select('id, numero_nf, defensivo_id, quantidade_atual').order('data_vencimento'),
+    supabase.from('culturas').select('id, nome').eq('ativo', true).order('nome'),
   ])
 
   if (!aplicacao) redirect('/aplicacoes')
@@ -43,6 +45,7 @@ export default async function EditarAplicacaoPage({ params }: { params: { id: st
       talhoes={talhoes ?? []}
       defensivos={defensivos ?? []}
       lotes={lotes ?? []}
+      culturas={culturas ?? []}
     />
   )
 }
