@@ -30,13 +30,20 @@ export async function middleware(request: NextRequest) {
                        '/relatorios', '/importar', '/exportar', '/usuarios', '/perfil', '/inventario']
   const isDash     = path === '/' || PROTECTED.some(p => path === p || path.startsWith(p + '/'))
 
-  if (!user && isDash)  return NextResponse.redirect(new URL('/login', request.url))
-  if (user  && isLogin) return NextResponse.redirect(new URL('/dashboard', request.url))
+  // Perfil (papel + ativo) do usuário logado
+  let profile: { role: string; ativo: boolean } | null = null
+  if (user) {
+    const { data } = await supabase.from('profiles').select('role, ativo').eq('id', user.id).single()
+    profile = data
+  }
+  const inativo = !!user && profile?.ativo === false
 
-  if (user && isDash) {
-    const { data: profile } = await supabase
-      .from('profiles').select('role').eq('id', user.id).single()
+  if (!user && isDash)                 return NextResponse.redirect(new URL('/login', request.url))
+  // Usuário desativado: bloqueia tudo e manda pro login (sem laço)
+  if (inativo && !isLogin)             return NextResponse.redirect(new URL('/login?desativado=1', request.url))
+  if (user && !inativo && isLogin)     return NextResponse.redirect(new URL('/dashboard', request.url))
 
+  if (user && !inativo && isDash) {
     if (profile?.role === 'field') {
       const FIELD_ALLOWED = ['/dashboard', '/aplicacoes', '/movimentacoes', '/estoque', '/fazendas', '/talhoes', '/perfil', '/inventario', '/relatorios']
       const allowed = FIELD_ALLOWED.some(p => path === p || path.startsWith(p + '/'))
