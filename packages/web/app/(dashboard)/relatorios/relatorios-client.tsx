@@ -8,6 +8,7 @@ import { formatarData, formatarMoeda, formatarNumero } from '@/lib/utils'
 import { FileText, RefreshCw, Printer } from 'lucide-react'
 
 interface FazSimple { id: string; nome: string }
+interface CultSimple { id: string; nome: string }
 
 const RELATORIOS = [
   { key: 'estoque',          label: 'Estoque Atual (com saldo)',   desc: 'Apenas os produtos que têm saldo em estoque' },
@@ -20,11 +21,12 @@ const RELATORIOS = [
   { key: 'custo_talhao',label: 'Custo por Talhão',           desc: 'Quanto foi gasto em defensivos em cada talhão, com custo por hectare', financeiro: true },
 ]
 
-export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: FazSimple[] }) {
+export function RelatoriosClient({ role, fazendas, culturas }: { role: string; fazendas: FazSimple[]; culturas: CultSimple[] }) {
   const supabase = createClient()
   const [dataIni, setIni]     = useState(new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0])
   const [dataFim, setFim]     = useState(new Date().toISOString().split('T')[0])
   const [fazenda, setFazenda] = useState('todas')
+  const [cultura, setCultura] = useState('todas')
   const [loading, setLoading] = useState<string | null>(null)
 
   async function gerarPDF(tipo: string) {
@@ -51,9 +53,10 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
         imprimirEstoque(estoque ?? [], lotes ?? [], dataIni, dataFim)
 
       } else if (tipo === 'aplicacoes') {
-        const q = supabase2.from('aplicacoes')
+        let q = supabase2.from('aplicacoes')
           .select(`data, status, area_aplicada_ha, praga_alvo,
             fazenda:fazendas(nome), talhao:talhoes(nome),
+            cultura:culturas(nome),
             responsavel:profiles(nome),
             itens:aplicacao_itens(
               quantidade_usada, quantidade_sobrou, dose_por_hectare,
@@ -61,7 +64,8 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
             )`)
           .gte('data', dataIni).lte('data', dataFim).order('data', { ascending: false })
 
-        if (fazenda !== 'todas') q.eq('fazenda_id', fazenda)
+        if (fazenda !== 'todas') q = q.eq('fazenda_id', fazenda)
+        if (cultura !== 'todas') q = q.eq('cultura_id', cultura)
         const { data: aplic } = await q
         imprimirAplicacoes(aplic ?? [], dataIni, dataFim)
 
@@ -78,6 +82,7 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
           .select(`
             data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas, vazao_l_ha,
             fazenda:fazendas(nome),
+            cultura:culturas(nome),
             talhao:talhoes(nome, area_ha),
             talhoes_vinculados:aplicacao_talhoes(talhao:talhoes(nome, area_ha)),
             responsavel:profiles(nome),
@@ -88,6 +93,7 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
           `)
           .gte('data', dataIni).lte('data', dataFim).order('data', { ascending: true })
         if (fazenda !== 'todas') q = q.eq('fazenda_id', fazenda)
+        if (cultura !== 'todas') q = q.eq('cultura_id', cultura)
         const { data: aplic } = await q
         imprimirAplicacoesFazenda((aplic ?? []) as any[], dataIni, dataFim)
 
@@ -98,21 +104,24 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
         imprimirCompras(lotes ?? [], dataIni, dataFim)
 
       } else if (tipo === 'custo_talhao') {
-        const q2 = supabase2.from('aplicacoes')
+        let q2 = supabase2.from('aplicacoes')
           .select(`fazenda_id, talhao_id, area_aplicada_ha,
             fazenda:fazendas(nome),
             talhao:talhoes(nome, area_ha),
             itens:aplicacao_itens(quantidade_usada, lote:lotes(preco_unitario), defensivo:defensivos(nome_comercial, classe))`)
           .gte('data', dataIni).lte('data', dataFim).eq('status', 'encerrada')
-        if (fazenda !== 'todas') q2.eq('fazenda_id', fazenda)
+        if (fazenda !== 'todas') q2 = q2.eq('fazenda_id', fazenda)
+        if (cultura !== 'todas') q2 = q2.eq('cultura_id', cultura)
         const { data: aplicCusto } = await q2
         imprimirCustoTalhao(aplicCusto ?? [], dataIni, dataFim)
 
       } else if (tipo === 'executivo') {
-        const { data: aplic } = await supabase2.from('aplicacoes')
+        let qExec = supabase2.from('aplicacoes')
           .select(`fazenda_id, area_aplicada_ha, fazenda:fazendas(nome),
             itens:aplicacao_itens(quantidade_usada, lote:lotes(preco_unitario), defensivo:defensivos(nome_comercial))`)
           .gte('data', dataIni).lte('data', dataFim).eq('status', 'encerrada')
+        if (cultura !== 'todas') qExec = qExec.eq('cultura_id', cultura)
+        const { data: aplic } = await qExec
         imprimirExecutivo(aplic ?? [], dataIni, dataFim)
       }
     } catch (e: any) {
@@ -155,6 +164,16 @@ export function RelatoriosClient({ role, fazendas }: { role: string; fazendas: F
                 {fazendas.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
             </div>
+            {culturas.length > 1 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">Cultura:</label>
+                <select className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={cultura} onChange={e => setCultura(e.target.value)}>
+                  <option value="todas">Todas</option>
+                  {culturas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

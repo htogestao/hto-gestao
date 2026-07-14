@@ -12,6 +12,7 @@ interface Fazenda   { id: string; nome: string }
 interface Talhao    { id: string; nome: string; fazenda_id: string; area_ha: number | null }
 interface Defensivo { id: string; nome_comercial: string; unidade: string }
 interface Lote      { id: string; numero_nf: string | null; defensivo_id: string; quantidade_atual: number }
+interface Cultura   { id: string; nome: string }
 
 interface Item {
   defensivo_id:      string
@@ -26,13 +27,15 @@ const ITEM_VAZIO: Item = {
   dose_por_hectare: '', qtd_retirada: '', quantidade_sobrou: '0',
 }
 
-export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, userId }: {
+export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, culturas, userId }: {
   fazendas: Fazenda[]; talhoes: Talhao[]; defensivos: Defensivo[]
-  lotes: Lote[]; userId: string; userName: string
+  lotes: Lote[]; culturas: Cultura[]; userId: string; userName: string
 }) {
   const supabase = createClient()
   const router   = useRouter()
 
+  const canaPadrao = culturas.find(c => c.nome === 'Cana')?.id ?? ''
+  const [culturaId,  setCulturaId]  = useState(canaPadrao)
   const [fazendaId,  setFazendaId]  = useState('')
   const [talhoesSel, setTalhoesSel] = useState<string[]>([])
   const [data,       setData]       = useState(new Date().toISOString().split('T')[0])
@@ -90,7 +93,8 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
         .from('aplicacoes')
         .insert({
           fazenda_id:           fazendaId,
-          talhao_id:            talhoesSel[0],   // talhão principal (para compatibilidade)
+          talhao_id:            talhoesSel[0],
+          cultura_id:           culturaId || canaPadrao,
           data,
           status,
           area_aplicada_ha:     areaTotal || null,
@@ -155,12 +159,23 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, user
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{erro}</div>
       )}
 
-      {/* ── CARD 1: Fazenda + Talhões ── */}
+      {/* ── CARD 1: Cultura + Fazenda + Talhões ── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">1. Fazenda e Talhões</CardTitle>
+          <CardTitle className="text-sm">1. Cultura, Fazenda e Talhões</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">Cultura *</label>
+            <select
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={culturaId}
+              onChange={e => setCulturaId(e.target.value)}
+            >
+              {culturas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+
           <div>
             <label className="text-sm font-medium">Fazenda *</label>
             <select

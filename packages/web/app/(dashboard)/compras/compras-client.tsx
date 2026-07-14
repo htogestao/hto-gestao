@@ -10,19 +10,23 @@ import { formatarData, formatarMoeda, formatarNumero, diasParaVencer, statusVenc
 import { CLASSE_LABELS } from '@agro/shared'
 import { Plus, Search, X, Check, ShoppingCart, PackagePlus, Pencil, Trash2 } from 'lucide-react'
 
+interface CulturaSimple { id: string; nome: string }
+
 interface Lote {
   id: string; numero_nf: string | null; fornecedor: string | null
   data_compra: string | null; quantidade_comprada: number; quantidade_atual: number
   preco_unitario: number | null; valor_total: number | null
   data_fabricacao: string | null; data_vencimento: string | null
   lote_fabricante: string | null; observacoes: string | null; created_at: string
+  cultura_id: string | null
   defensivo: { id: string; nome_comercial: string; unidade: string; empresa: string | null } | null
+  cultura: CulturaSimple | null
 }
 
 interface DefSimple { id: string; nome_comercial: string; unidade: string }
 
 const FORM_DEFAULT = {
-  defensivo_id: '', numero_nf: '', fornecedor: '', data_compra: new Date().toISOString().split('T')[0],
+  defensivo_id: '', cultura_id: '', numero_nf: '', fornecedor: '', data_compra: new Date().toISOString().split('T')[0],
   quantidade: '', saldo: '', preco_unitario: '', data_fabricacao: '', data_vencimento: '',
   lote_fabricante: '', observacoes: '',
 }
@@ -31,8 +35,8 @@ const NOVO_PROD_DEFAULT = {
   nome_comercial: '', principio_ativo: '', classe: 'herbicida', unidade: 'L', empresa: '',
 }
 
-export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }: {
-  lotes: Lote[]; defensivos: DefSimple[]; role: string
+export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, culturas, role }: {
+  lotes: Lote[]; defensivos: DefSimple[]; culturas: CulturaSimple[]; role: string
 }) {
   const canEdit  = role === 'admin' || role === 'viewer'
   const isAdmin  = role === 'admin'
@@ -131,15 +135,18 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
 
   const F = (k: keyof typeof FORM_DEFAULT, v: string) => setForm(p => ({ ...p, [k]: v }))
 
+  const canaPadrao = culturas.find(c => c.nome === 'Cana')?.id ?? ''
+
   function abrirNova() {
     setEditId(null); setErro(''); setNovoProd(false); setRenomeando(false); setNpForm(NOVO_PROD_DEFAULT)
-    setForm(FORM_DEFAULT); setModal(true)
+    setForm({ ...FORM_DEFAULT, cultura_id: canaPadrao }); setModal(true)
   }
 
   function abrirEditar(l: Lote) {
     setEditId(l.id); setErro(''); setNovoProd(false); setRenomeando(false)
     setForm({
       defensivo_id:    l.defensivo?.id ?? '',
+      cultura_id:      l.cultura_id ?? canaPadrao,
       numero_nf:       l.numero_nf ?? '',
       fornecedor:      l.fornecedor ?? '',
       data_compra:     l.data_compra ?? '',
@@ -156,8 +163,9 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
 
   const SELECT_LOTE = `
     id, numero_nf, fornecedor, data_compra, quantidade_comprada, quantidade_atual,
-    preco_unitario, valor_total, data_fabricacao, data_vencimento, lote_fabricante, observacoes, created_at,
-    defensivo:defensivos(id, nome_comercial, unidade, empresa)
+    preco_unitario, valor_total, data_fabricacao, data_vencimento, lote_fabricante, observacoes, created_at, cultura_id,
+    defensivo:defensivos(id, nome_comercial, unidade, empresa),
+    cultura:culturas(id, nome)
   `
 
   async function salvar() {
@@ -171,6 +179,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
       const saldo = form.saldo !== '' ? parseFloat(form.saldo) : qtd
       const { data, error } = await supabase.from('lotes').update({
         defensivo_id:        form.defensivo_id,
+        cultura_id:          form.cultura_id || null,
         numero_nf:           form.numero_nf || null,
         fornecedor:          form.fornecedor || null,
         data_compra:         form.data_compra || null,
@@ -193,6 +202,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
     // NOVA entrada
     const { data, error } = await supabase.from('lotes').insert({
       defensivo_id:        form.defensivo_id,
+      cultura_id:          form.cultura_id || null,
       numero_nf:           form.numero_nf || null,
       fornecedor:          form.fornecedor || null,
       data_compra:         form.data_compra || null,
@@ -251,6 +261,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="text-left p-3 font-medium">Produto</th>
+                  <th className="text-left p-3 font-medium">Cultura</th>
                   <th className="text-left p-3 font-medium">NF</th>
                   <th className="text-left p-3 font-medium">Fornecedor</th>
                   <th className="text-right p-3 font-medium">Qtd</th>
@@ -283,6 +294,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                           </>
                         )}
                       </td>
+                      <td className="p-3 text-sm text-muted-foreground">{l.cultura?.nome ?? '—'}</td>
                       <td className="p-3 font-mono text-sm">{l.numero_nf ?? <span className="text-muted-foreground">S/NF</span>}</td>
                       <td className="p-3 text-muted-foreground">{l.fornecedor ?? '—'}</td>
                       <td className="p-3 text-right font-mono">
@@ -324,7 +336,7 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                   )
                 })}
                 {filtrados.length === 0 && (
-                  <tr><td colSpan={canEdit ? 10 : 9} className="p-8 text-center text-muted-foreground">
+                  <tr><td colSpan={canEdit ? 11 : 10} className="p-8 text-center text-muted-foreground">
                     <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-20" />
                     Nenhuma compra encontrada
                   </td></tr>
@@ -442,6 +454,19 @@ export function ComprasClient({ lotes: inicial, defensivos: defsIniciais, role }
                   </div>
                 )}
               </div>
+              {culturas.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Cultura</label>
+                  <select
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={form.cultura_id}
+                    onChange={e => F('cultura_id', e.target.value)}
+                  >
+                    <option value="">Sem cultura específica</option>
+                    {culturas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Número da NF</label>

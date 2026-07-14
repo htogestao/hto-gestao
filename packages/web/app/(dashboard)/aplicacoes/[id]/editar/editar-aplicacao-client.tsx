@@ -11,6 +11,7 @@ interface Fazenda   { id: string; nome: string }
 interface Talhao    { id: string; nome: string; fazenda_id: string; area_ha: number | null }
 interface Defensivo { id: string; nome_comercial: string; unidade: string }
 interface Lote      { id: string; numero_nf: string | null; defensivo_id: string; quantidade_atual: number }
+interface Cultura   { id: string; nome: string }
 
 interface Item {
   id?: string
@@ -26,7 +27,7 @@ interface Aplicacao {
   id: string; data: string; status: string
   area_aplicada_ha: number | null; praga_alvo: string | null
   condicoes_climaticas: string | null; observacoes: string | null
-  fazenda_id: string; talhao_id: string
+  fazenda_id: string; talhao_id: string; cultura_id: string
   talhoes_vinculados?: { talhao_id: string }[]
   itens: {
     id: string; defensivo_id: string; lote_id: string | null
@@ -35,13 +36,14 @@ interface Aplicacao {
   }[]
 }
 
-export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos, lotes }: {
+export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos, lotes, culturas }: {
   aplicacao: Aplicacao
-  fazendas: Fazenda[]; talhoes: Talhao[]; defensivos: Defensivo[]; lotes: Lote[]
+  fazendas: Fazenda[]; talhoes: Talhao[]; defensivos: Defensivo[]; lotes: Lote[]; culturas: Cultura[]
 }) {
   const supabase = createClient()
   const router   = useRouter()
 
+  const [culturaId, setCulturaId] = useState(aplicacao.cultura_id ?? '')
   const [fazendaId, setFazendaId] = useState(aplicacao.fazenda_id)
   // Talhões vinculados (multi). Se não houver vínculos, usa o talhão único antigo.
   const [talhoesSel, setTalhoesSel] = useState<string[]>(
@@ -115,6 +117,7 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
         .from('aplicacoes')
         .update({
           fazenda_id: fazendaId, talhao_id: talhoesSel[0],
+          cultura_id: culturaId || undefined,
           data, status,
           area_aplicada_ha: area ? parseFloat(area) : null,
           praga_alvo: praga || null,
@@ -216,6 +219,19 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-sm">Dados da Aplicação</CardTitle></CardHeader>
         <CardContent className="space-y-3">
+          {culturas.length > 0 && (
+            <div>
+              <label className="text-sm font-medium">Cultura *</label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={culturaId}
+                onChange={e => setCulturaId(e.target.value)}
+              >
+                {culturas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="text-sm font-medium">Fazenda *</label>
             <select
