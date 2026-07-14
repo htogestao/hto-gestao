@@ -15,6 +15,7 @@ export type ClasseDefensivo =
   | 'maturador'
   | 'regulador_crescimento'
   | 'ativador_crescimento'
+  | 'biologico'
   | 'fungicida_herbicida'
   | 'outro'
 
@@ -33,6 +34,7 @@ export const CLASSE_LABELS: Record<ClasseDefensivo, string> = {
   maturador: 'Maturador',
   regulador_crescimento: 'Regulador de Crescimento',
   ativador_crescimento: 'Ativador de Crescimento',
+  biologico: 'Biológico',
   fungicida_herbicida: 'Fungicida/Herbicida',
   outro: 'Outro',
 }

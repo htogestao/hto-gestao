@@ -48,6 +48,16 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
   const [salvando,   setSalvando]   = useState(false)
   const [erro,       setErro]       = useState('')
 
+  const [operador,        setOperador]        = useState('')
+  const [equipamento,     setEquipamento]     = useState('')
+  const [frota,           setFrota]           = useState('')
+  const [tipoAplicacao,   setTipoAplicacao]   = useState('')
+  const [temperatura,     setTemperatura]     = useState('')
+  const [umidade,         setUmidade]         = useState('')
+  const [velocidadeVento, setVelocidadeVento] = useState('')
+  const [horaInicio,      setHoraInicio]      = useState('')
+  const [horaFim,         setHoraFim]         = useState('')
+
   const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
 
   const talhoesInfo = useMemo(
@@ -103,6 +113,15 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
           observacoes:          obs || null,
           responsavel_id:       userId,
           vazao_l_ha:           vazao ? parseFloat(vazao) : null,
+          operador:             operador || null,
+          equipamento:          equipamento || null,
+          frota:                frota || null,
+          tipo_aplicacao:       tipoAplicacao || null,
+          temperatura:          temperatura ? parseFloat(temperatura) : null,
+          umidade:              umidade ? parseFloat(umidade) : null,
+          velocidade_vento:     velocidadeVento ? parseFloat(velocidadeVento) : null,
+          hora_inicio:          horaInicio || null,
+          hora_fim:             horaFim || null,
         })
         .select('id').single()
 
@@ -269,15 +288,59 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-medium">Status</label>
-            <select
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={status} onChange={e => setStatus(e.target.value as any)}
-            >
-              <option value="encerrada">Encerrada</option>
-              <option value="em_andamento">Em Andamento</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Status</label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={status} onChange={e => setStatus(e.target.value as any)}
+              >
+                <option value="encerrada">Encerrada</option>
+                <option value="em_andamento">Em Andamento</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Tipo de Aplicação</label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={tipoAplicacao} onChange={e => setTipoAplicacao(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                <option value="barra_total">Barra Total</option>
+                <option value="pingente">Pingente</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-sm font-medium">Operador</label>
+              <Input className="mt-1" placeholder="Nome do operador"
+                value={operador} onChange={e => setOperador(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Equipamento</label>
+              <Input className="mt-1" placeholder="Ex: Pulverizador"
+                value={equipamento} onChange={e => setEquipamento(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Frota</label>
+              <Input className="mt-1" placeholder="Ex: Trator 01"
+                value={frota} onChange={e => setFrota(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Hora Início</label>
+              <Input type="time" className="mt-1"
+                value={horaInicio} onChange={e => setHoraInicio(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Hora Fim</label>
+              <Input type="time" className="mt-1"
+                value={horaFim} onChange={e => setHoraFim(e.target.value)} />
+            </div>
           </div>
 
           <div>
@@ -286,9 +349,27 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
               value={praga} onChange={e => setPraga(e.target.value)} />
           </div>
 
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-sm font-medium">Temp. (°C)</label>
+              <Input type="number" step="0.1" placeholder="Ex: 28"
+                className="mt-1" value={temperatura} onChange={e => setTemperatura(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Umidade (%)</label>
+              <Input type="number" step="1" min="0" max="100" placeholder="Ex: 65"
+                className="mt-1" value={umidade} onChange={e => setUmidade(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Vento (km/h)</label>
+              <Input type="number" step="0.1" min="0" placeholder="Ex: 8"
+                className="mt-1" value={velocidadeVento} onChange={e => setVelocidadeVento(e.target.value)} />
+            </div>
+          </div>
+
           <div>
-            <label className="text-sm font-medium">Condições Climáticas</label>
-            <Input className="mt-1" placeholder="Ex: Céu limpo, vento fraco, umidade 70%..."
+            <label className="text-sm font-medium">Obs. Climáticas</label>
+            <Input className="mt-1" placeholder="Anotações sobre o clima..."
               value={clima} onChange={e => setClima(e.target.value)} />
           </div>
 
