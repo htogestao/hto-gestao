@@ -30,7 +30,7 @@ export default async function TalhoesPage() {
     <TalhoesClient
       talhoes={talhoes ?? []}
       fazendas={fazendas ?? []}
-      isAdmin={['admin', 'viewer', 'field'].includes(profile?.role ?? '')}
+      isAdmin={['admin', 'viewer'].includes(profile?.role ?? '')}
     />
   )
 }
