@@ -62,7 +62,7 @@ export function EstoqueTable({ estoque: inicial, lotes: lotesIniciais, role }: {
     const matchClasse = filtroClasse === 'todos' || e.classe === filtroClasse
     const matchAlerta = !somenteAlertas || e.em_alerta || e.tem_vencido
     return matchBusca && matchClasse && matchAlerta
-  })
+  }).sort((a, b) => a.nome_comercial.localeCompare(b.nome_comercial, 'pt-BR'))
 
   function toggleExpand(id: string) {
     setExpandidos(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })

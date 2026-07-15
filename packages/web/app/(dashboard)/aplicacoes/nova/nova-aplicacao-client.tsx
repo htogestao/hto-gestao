@@ -60,6 +60,12 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
 
   const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
 
+  // Só produtos com saldo disponível aparecem no seletor de aplicação (interface)
+  const defensivosComSaldo = useMemo(
+    () => defensivos.filter(d => lotes.some(l => l.defensivo_id === d.id && l.quantidade_atual > 0)),
+    [defensivos, lotes]
+  )
+
   const talhoesInfo = useMemo(
     () => talhoesSel.map(id => talhoesFazenda.find(t => t.id === id)).filter(Boolean) as Talhao[],
     [talhoesSel, talhoesFazenda]
@@ -430,7 +436,7 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
                     }}
                   >
                     <option value="">Selecione...</option>
-                    {defensivos.map(d => (
+                    {defensivosComSaldo.map(d => (
                       <option key={d.id} value={d.id}>{d.nome_comercial} ({d.unidade})</option>
                     ))}
                   </select>

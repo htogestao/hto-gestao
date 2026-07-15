@@ -26,7 +26,7 @@ export function GraficoEstoque({ estoque }: { estoque: EstoqueItem[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Estoque Atual — Top Produtos</CardTitle>
+        <CardTitle className="text-base">Top Produtos em Estoque</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={280}>
