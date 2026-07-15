@@ -105,6 +105,12 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
     return lotes.filter(l => l.defensivo_id === defId)
   }
 
+  // Só produtos com saldo (ou já usados nesta aplicação) aparecem no seletor (interface)
+  const defensivosComSaldo = defensivos.filter(d =>
+    lotes.some(l => l.defensivo_id === d.id && l.quantidade_atual > 0) ||
+    itens.some(it => it.defensivo_id === d.id)
+  )
+
   async function deletar() {
     setDeletando(true)
     try {
@@ -435,7 +441,7 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
                   onChange={e => atualizarItem(i, 'defensivo_id', e.target.value)}
                 >
                   <option value="">Selecione...</option>
-                  {defensivos.map(d => <option key={d.id} value={d.id}>{d.nome_comercial} ({d.unidade})</option>)}
+                  {defensivosComSaldo.map(d => <option key={d.id} value={d.id}>{d.nome_comercial} ({d.unidade})</option>)}
                 </select>
               </div>
 
