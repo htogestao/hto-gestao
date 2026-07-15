@@ -1,1 +1,29 @@
-node_modules/ 
+# Dependências
+node_modules/
+
+# Build / saída gerada (reconstruída a cada deploy)
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Expo / mobile
+.expo/
+web-build/
+
+# Variáveis de ambiente locais (o Vercel usa as do painel)
+.env*.local
+
+# Vercel
+.vercel
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
