@@ -23,11 +23,11 @@ Sistema de gestão agrícola (cana). **Talhão é o centro do histórico.** Web 
 **Meta:** financeiro/área/custo/export com fonte única, reconciliável com o razão de estoque.
 - Problemas: `REPORTS_AUDIT.md` (P1–P8) + `SPRINT1_CREDIBILIDADE.md` (P9–P11).
 - Plano/etapas: `SPRINT1_CREDIBILIDADE.md` (Etapas 0–5).
-- **Bloqueio:** 6 decisões pendentes em `SPRINT1_DECISOES.md` (checkboxes). Recomendação: D1=razão, D2=preço médio+flag, D3=rateio por área, D4=deprecar `area_aplicada_ha`, D5=encerrada+andamento, D6=views SQL.
+- **Decisões CONGELADAS ✅ (2026-07-16):** D1=razão · D2=preço médio+flag · D3=rateio por área (fallback igual) · D4=deprecar `area_aplicada_ha` · D5=encerrada+andamento · D6=views SQL. **Etapa 1 destravada.** (`SPRINT1_DECISOES.md`)
 
 ## 5. Próximas tarefas (ordem)
-1. Dono marca as **6 decisões** (`SPRINT1_DECISOES.md`).
-2. Desenhar **contrato da view canônica** (campos/grão/regras) — revisão antes de implementar.
+1. ✅ 6 decisões congeladas.
+2. Desenhar **contrato da view canônica** (campos/grão/regras) — revisão antes de implementar. ← PRÓXIMO
 3. Etapa 0: `supabase db pull` + versionar gatilho.
 4. Etapa 1: views de consumo/custo/área.
 5. Etapas 2–5: financeiros → exports → rótulos → reconciliação.
