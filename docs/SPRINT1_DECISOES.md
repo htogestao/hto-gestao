@@ -41,7 +41,7 @@
 
 ---
 
-### Resumo das recomendações
+### Decisões ACEITAS ✅ (2026-07-16 — congeladas)
 D1=A (razão) · D2=A (preço médio+flag) · D3=A (rateio por área, fallback igual) · D4=A (deprecar campo) · D5=B (encerrada+andamento) · D6=A (views SQL).
 
 **Se aceitar as 6 recomendações**, a Etapa 1 fica: uma view de consumo derivada do razão, custo = consumo × preço(médio/lote) com flag, área e custo rateados por talhão via junção, população = encerrada+andamento, em SQL versionado após Etapa 0.
