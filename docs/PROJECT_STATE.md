@@ -27,7 +27,8 @@ Sistema de gestão agrícola (cana). **Talhão é o centro do histórico.** Web 
 
 ## 5. Próximas tarefas (ordem)
 1. ✅ 6 decisões congeladas.
-2. Desenhar **contrato da view canônica** (campos/grão/regras) — revisão antes de implementar. ← PRÓXIMO
+2. ✅ Contrato da view canônica (`SPRINT1_VIEW_CONTRACT.md`) — planejamento 100%.
+3. **Chat 2 (Implementação):** Etapa 0 `db pull` + gatilho versionado → Etapa 1 criar views V1–V4 (precisa acesso Supabase). ← PRÓXIMO
 3. Etapa 0: `supabase db pull` + versionar gatilho.
 4. Etapa 1: views de consumo/custo/área.
 5. Etapas 2–5: financeiros → exports → rótulos → reconciliação.
