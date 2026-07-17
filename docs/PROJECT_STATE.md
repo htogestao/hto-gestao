@@ -1,7 +1,7 @@
 # PROJECT_STATE — Âncora de Contexto
 
 > Leia **este arquivo primeiro** ao iniciar um chat novo. É um índice de estado (1–2 páginas), não a fonte detalhada — o detalhe vive nos docs linkados. **Atualizar ao fim de cada ciclo/etapa.**
-> Última atualização: 2026-07-16.
+> Última atualização: 2026-07-17.
 
 ## 1. Projeto
 Sistema de gestão agrícola (cana). **Talhão é o centro do histórico.** Web (Next.js 14) + Mobile (Expo) + Supabase (Postgres/RLS/RPC). Monorepo pnpm. Deploy Vercel (`main` → auto). Produção: `hto-gestao-web.vercel.app` (verificação visual é do dono; não faço login).
@@ -18,6 +18,7 @@ Sistema de gestão agrícola (cana). **Talhão é o centro do histórico.** Web 
 4. **Sem duplicação de área** (fan-out proibido; ver `REPORTS.md`).
 5. **Fonte única auditável** para financeiro/área/custo/export.
 6. **Confiabilidade do dado > feature nova.** Dado errado em relatório financeiro é mais grave que feature inexistente.
+7. **SSFT — Single Source of Financial Truth** (princípio arquitetural **permanente**, nível das decisões de domínio): toda regra financeira (custo, consumo, área, estoque, indicadores) tem **uma única implementação oficial**; frontend nunca recalcula. Documento **normativo** da camada financeira: `SPRINT1_VIEW_CONTRACT.md`.
 
 ## 4. Sprint atual — Sprint 1: Credibilidade dos Dados
 **Meta:** financeiro/área/custo/export com fonte única, reconciliável com o razão de estoque.
