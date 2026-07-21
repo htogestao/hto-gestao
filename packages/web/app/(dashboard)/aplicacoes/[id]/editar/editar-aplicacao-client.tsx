@@ -18,7 +18,7 @@ interface Frota     { id: string; identificador: string; categoria: string }
 // Lista fixa de operações (mesma da tela Nova) — evolui para cadastro próprio (Fase 2).
 const OPERACOES = [
   'Fungicida', 'Inseticida', 'Catação química', 'Plantio mecanizado',
-  'Dessecação', 'Maturador/barra reguladora de crescimento',
+  'Dessecação', 'Maturador / Regulador de Crescimento',
 ]
 
 // Ordem e rótulos dos grupos de frota (categoria no banco → rótulo na tela)

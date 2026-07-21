@@ -32,7 +32,7 @@ const ITEM_VAZIO: Item = {
 // Lista de operações (objetivo). Lista fixa nesta fase — evolui para cadastro próprio (Fase 2).
 const OPERACOES = [
   'Fungicida', 'Inseticida', 'Catação química', 'Plantio mecanizado',
-  'Dessecação', 'Maturador/barra reguladora de crescimento',
+  'Dessecação', 'Maturador / Regulador de Crescimento',
 ]
 
 // Ordem e rótulos dos grupos de frota (categoria no banco → rótulo na tela)
