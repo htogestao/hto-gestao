@@ -12,6 +12,21 @@ interface Talhao    { id: string; nome: string; fazenda_id: string; area_ha: num
 interface Defensivo { id: string; nome_comercial: string; unidade: string }
 interface Lote      { id: string; numero_nf: string | null; defensivo_id: string; quantidade_atual: number }
 interface Cultura   { id: string; nome: string }
+interface Operador  { id: string; nome: string }
+interface Frota     { id: string; identificador: string; categoria: string }
+
+// Lista fixa de operações (mesma da tela Nova) — evolui para cadastro próprio (Fase 2).
+const OPERACOES = [
+  'Fungicida', 'Inseticida', 'Catação química', 'Plantio mecanizado',
+  'Dessecação', 'Maturador/barra reguladora de crescimento',
+]
+
+// Ordem e rótulos dos grupos de frota (categoria no banco → rótulo na tela)
+const CATEGORIA_FROTA: { key: string; label: string }[] = [
+  { key: 'pulverizador',      label: 'Pulverizadores' },
+  { key: 'trator_implemento', label: 'Trator + implemento' },
+  { key: 'cultivador',        label: 'Cultivador' },
+]
 
 interface Item {
   id?: string
@@ -28,7 +43,9 @@ interface Aplicacao {
   area_aplicada_ha: number | null; praga_alvo: string | null
   condicoes_climaticas: string | null; observacoes: string | null
   fazenda_id: string; talhao_id: string; cultura_id: string
-  operador: string | null; equipamento: string | null; frota: string | null
+  operador: string | null; operador_id: string | null
+  equipamento: string | null; frota: string | null; frota_id: string | null
+  operacao: string | null; horimetro_inicial: number | null
   tipo_aplicacao: string | null; temperatura: number | null; umidade: number | null
   velocidade_vento: number | null; hora_inicio: string | null; hora_fim: string | null
   talhoes_vinculados?: { talhao_id: string }[]
@@ -39,9 +56,10 @@ interface Aplicacao {
   }[]
 }
 
-export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos, lotes, culturas }: {
+export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos, lotes, culturas, operadores, frotas }: {
   aplicacao: Aplicacao
   fazendas: Fazenda[]; talhoes: Talhao[]; defensivos: Defensivo[]; lotes: Lote[]; culturas: Cultura[]
+  operadores: Operador[]; frotas: Frota[]
 }) {
   const supabase = createClient()
   const router   = useRouter()
@@ -61,9 +79,11 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
   const [obs,       setObs]       = useState(aplicacao.observacoes ?? '')
   const [status,    setStatus]    = useState<'em_andamento' | 'encerrada'>(aplicacao.status as any)
 
-  const [operador,        setOperador]        = useState(aplicacao.operador ?? '')
+  const [operadorId,      setOperadorId]      = useState(aplicacao.operador_id ?? '')
   const [equipamento,     setEquipamento]     = useState(aplicacao.equipamento ?? '')
-  const [frota,           setFrota]           = useState(aplicacao.frota ?? '')
+  const [frotaId,         setFrotaId]         = useState(aplicacao.frota_id ?? '')
+  const [operacao,        setOperacao]        = useState(aplicacao.operacao ?? '')
+  const [horimetroInicial, setHorimetroInicial] = useState(aplicacao.horimetro_inicial != null ? String(aplicacao.horimetro_inicial) : '')
   const [tipoAplicacao,   setTipoAplicacao]   = useState(aplicacao.tipo_aplicacao ?? '')
   const [temperatura,     setTemperatura]     = useState(aplicacao.temperatura != null ? String(aplicacao.temperatura) : '')
   const [umidade,         setUmidade]         = useState(aplicacao.umidade != null ? String(aplicacao.umidade) : '')
@@ -130,6 +150,9 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
       setErro('Preencha defensivo e quantidade usada em todos os itens.'); return
     }
     setErro(''); setSalvando(true)
+    // Texto denormalizado (nome/identificador) mantém Lista/Detalhe/exports funcionando
+    const operadorSel = operadores.find(o => o.id === operadorId)
+    const frotaSel    = frotas.find(f => f.id === frotaId)
     try {
       // Atualiza a aplicação
       const { error: errAplic } = await supabase
@@ -142,9 +165,13 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
           praga_alvo: praga || null,
           condicoes_climaticas: clima || null,
           observacoes: obs || null,
-          operador:          operador || null,
+          operador_id:       operadorId || null,
+          operador:          operadorSel?.nome || null,
           equipamento:       equipamento || null,
-          frota:             frota || null,
+          frota_id:          frotaId || null,
+          frota:             frotaSel?.identificador || null,
+          operacao:          operacao || null,
+          horimetro_inicial: horimetroInicial ? parseFloat(horimetroInicial) : null,
           tipo_aplicacao:    tipoAplicacao || null,
           temperatura:       temperatura ? parseFloat(temperatura) : null,
           umidade:           umidade ? parseFloat(umidade) : null,
@@ -344,21 +371,58 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-sm font-medium">Operação</label>
+            <select
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={operacao} onChange={e => setOperacao(e.target.value)}
+            >
+              <option value="">Selecione...</option>
+              {OPERACOES.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium">Operador</label>
-              <Input className="mt-1" placeholder="Nome do operador"
-                value={operador} onChange={e => setOperador(e.target.value)} />
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={operadorId} onChange={e => setOperadorId(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                {operadores.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium">Equipamento</label>
               <Input className="mt-1" placeholder="Ex: Pulverizador"
                 value={equipamento} onChange={e => setEquipamento(e.target.value)} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium">Frota</label>
-              <Input className="mt-1" placeholder="Ex: Trator 01"
-                value={frota} onChange={e => setFrota(e.target.value)} />
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={frotaId} onChange={e => setFrotaId(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                {CATEGORIA_FROTA.map(cat => {
+                  const doGrupo = frotas.filter(f => f.categoria === cat.key)
+                  if (doGrupo.length === 0) return null
+                  return (
+                    <optgroup key={cat.key} label={cat.label}>
+                      {doGrupo.map(f => <option key={f.id} value={f.id}>{f.identificador}</option>)}
+                    </optgroup>
+                  )
+                })}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Horímetro inicial</label>
+              <Input type="number" step="0.1" min="0" placeholder="Ex: 1234.5" className="mt-1"
+                value={horimetroInicial} onChange={e => setHorimetroInicial(e.target.value)} />
             </div>
           </div>
 
