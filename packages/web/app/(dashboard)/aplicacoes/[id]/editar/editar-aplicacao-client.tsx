@@ -28,6 +28,13 @@ const CATEGORIA_FROTA: { key: string; label: string }[] = [
   { key: 'cultivador',        label: 'Cultivador' },
 ]
 
+// Equipamento é derivado da categoria da frota (read-only na tela)
+const EQUIPAMENTO_POR_CATEGORIA: Record<string, string> = {
+  pulverizador:      'Pulverizador',
+  trator_implemento: 'Trator + implemento',
+  cultivador:        'Cultivador',
+}
+
 interface Item {
   id?: string
   defensivo_id: string
@@ -80,7 +87,6 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
   const [status,    setStatus]    = useState<'em_andamento' | 'encerrada'>(aplicacao.status as any)
 
   const [operadorId,      setOperadorId]      = useState(aplicacao.operador_id ?? '')
-  const [equipamento,     setEquipamento]     = useState(aplicacao.equipamento ?? '')
   const [frotaId,         setFrotaId]         = useState(aplicacao.frota_id ?? '')
   const [operacao,        setOperacao]        = useState(aplicacao.operacao ?? '')
   const [horimetroInicial, setHorimetroInicial] = useState(aplicacao.horimetro_inicial != null ? String(aplicacao.horimetro_inicial) : '')
@@ -109,6 +115,10 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
   const [erro,      setErro]      = useState('')
 
   const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
+
+  // Equipamento é derivado da frota selecionada (read-only). Sem frota → vazio.
+  const frotaSel    = frotas.find(f => f.id === frotaId)
+  const equipamento = frotaSel ? (EQUIPAMENTO_POR_CATEGORIA[frotaSel.categoria] ?? '') : ''
 
   function toggleTalhao(id: string) {
     setTalhoesSel(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -152,7 +162,6 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
     setErro(''); setSalvando(true)
     // Texto denormalizado (nome/identificador) mantém Lista/Detalhe/exports funcionando
     const operadorSel = operadores.find(o => o.id === operadorId)
-    const frotaSel    = frotas.find(f => f.id === frotaId)
     try {
       // Atualiza a aplicação
       const { error: errAplic } = await supabase
@@ -395,8 +404,9 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
             </div>
             <div>
               <label className="text-sm font-medium">Equipamento</label>
-              <Input className="mt-1" placeholder="Ex: Pulverizador"
-                value={equipamento} onChange={e => setEquipamento(e.target.value)} />
+              <Input className="mt-1 bg-muted text-muted-foreground cursor-not-allowed" readOnly
+                tabIndex={-1} placeholder="Definido pela frota"
+                value={equipamento} />
             </div>
           </div>
 

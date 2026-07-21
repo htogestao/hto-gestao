@@ -42,6 +42,13 @@ const CATEGORIA_FROTA: { key: string; label: string }[] = [
   { key: 'cultivador',        label: 'Cultivador' },
 ]
 
+// Equipamento é derivado da categoria da frota (read-only na tela)
+const EQUIPAMENTO_POR_CATEGORIA: Record<string, string> = {
+  pulverizador:      'Pulverizador',
+  trator_implemento: 'Trator + implemento',
+  cultivador:        'Cultivador',
+}
+
 export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, culturas, operadores, frotas, userId }: {
   fazendas: Fazenda[]; talhoes: Talhao[]; defensivos: Defensivo[]
   lotes: Lote[]; culturas: Cultura[]; operadores: Operador[]; frotas: Frota[]
@@ -64,13 +71,16 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
   const [horimetroInicial, setHorimetroInicial] = useState('')
   const [horimetroFinal,   setHorimetroFinal]   = useState('')
   const [operadorId,  setOperadorId]  = useState('')
-  const [equipamento, setEquipamento] = useState('')
   const [frotaId,     setFrotaId]     = useState('')
   const [itens,      setItens]      = useState<Item[]>([{ ...ITEM_VAZIO }])
   const [salvando,   setSalvando]   = useState(false)
   const [erro,       setErro]       = useState('')
 
   const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
+
+  // Equipamento é derivado da frota selecionada (read-only). Sem frota → vazio.
+  const frotaSel    = frotas.find(f => f.id === frotaId)
+  const equipamento = frotaSel ? (EQUIPAMENTO_POR_CATEGORIA[frotaSel.categoria] ?? '') : ''
 
   // Só produtos com saldo disponível aparecem no seletor de aplicação (interface)
   const defensivosComSaldo = useMemo(
@@ -118,7 +128,6 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
     const operacaoFinal = operacao || null
     // Texto denormalizado (nome/identificador) mantém Lista/Detalhe/exports funcionando
     const operadorSel = operadores.find(o => o.id === operadorId)
-    const frotaSel    = frotas.find(f => f.id === frotaId)
 
     try {
       // ── 1. Cria UMA aplicação com área total ─────────────────────────
@@ -485,8 +494,9 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
             </div>
             <div>
               <label className="text-sm font-medium">Equipamento</label>
-              <Input className="mt-1" placeholder="Ex: Pulverizador"
-                value={equipamento} onChange={e => setEquipamento(e.target.value)} />
+              <Input className="mt-1 bg-muted text-muted-foreground cursor-not-allowed" readOnly
+                tabIndex={-1} placeholder="Definido pela frota"
+                value={equipamento} />
             </div>
           </div>
 
