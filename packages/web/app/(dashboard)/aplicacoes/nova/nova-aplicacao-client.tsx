@@ -13,6 +13,8 @@ interface Talhao    { id: string; nome: string; fazenda_id: string; area_ha: num
 interface Defensivo { id: string; nome_comercial: string; unidade: string }
 interface Lote      { id: string; numero_nf: string | null; defensivo_id: string; quantidade_atual: number }
 interface Cultura   { id: string; nome: string }
+interface Operador  { id: string; nome: string }
+interface Frota     { id: string; identificador: string; categoria: string }
 
 interface Item {
   defensivo_id:      string
@@ -27,9 +29,23 @@ const ITEM_VAZIO: Item = {
   dose_por_hectare: '', qtd_retirada: '', quantidade_sobrou: '0',
 }
 
-export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, culturas, userId }: {
+// Lista de operações (objetivo). Lista fixa nesta fase — evolui para cadastro próprio (Fase 2).
+const OPERACOES = [
+  'Fungicida', 'Inseticida', 'Catação química', 'Plantio mecanizado',
+  'Dessecação', 'Maturador/barra reguladora de crescimento',
+]
+
+// Ordem e rótulos dos grupos de frota (categoria no banco → rótulo na tela)
+const CATEGORIA_FROTA: { key: string; label: string }[] = [
+  { key: 'pulverizador',      label: 'Pulverizadores' },
+  { key: 'trator_implemento', label: 'Trator + implemento' },
+  { key: 'cultivador',        label: 'Cultivador' },
+]
+
+export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, culturas, operadores, frotas, userId }: {
   fazendas: Fazenda[]; talhoes: Talhao[]; defensivos: Defensivo[]
-  lotes: Lote[]; culturas: Cultura[]; userId: string; userName: string
+  lotes: Lote[]; culturas: Cultura[]; operadores: Operador[]; frotas: Frota[]
+  userId: string; userName: string
 }) {
   const supabase = createClient()
   const router   = useRouter()
@@ -39,24 +55,20 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
   const [fazendaId,  setFazendaId]  = useState('')
   const [talhoesSel, setTalhoesSel] = useState<string[]>([])
   const [data,       setData]       = useState(new Date().toISOString().split('T')[0])
-  const [praga,      setPraga]      = useState('')
-  const [clima,      setClima]      = useState('')
-  const [obs,        setObs]        = useState('')
+  const [operacao,      setOperacao]      = useState('')
   const [vazao,      setVazao]      = useState('')
   const [status,     setStatus]     = useState<'em_andamento' | 'encerrada'>('encerrada')
+  const [tipoAplicacao, setTipoAplicacao] = useState('')
+  const [horaInicio, setHoraInicio] = useState('')
+  const [horaFim,    setHoraFim]    = useState('')
+  const [horimetroInicial, setHorimetroInicial] = useState('')
+  const [horimetroFinal,   setHorimetroFinal]   = useState('')
+  const [operadorId,  setOperadorId]  = useState('')
+  const [equipamento, setEquipamento] = useState('')
+  const [frotaId,     setFrotaId]     = useState('')
   const [itens,      setItens]      = useState<Item[]>([{ ...ITEM_VAZIO }])
   const [salvando,   setSalvando]   = useState(false)
   const [erro,       setErro]       = useState('')
-
-  const [operador,        setOperador]        = useState('')
-  const [equipamento,     setEquipamento]     = useState('')
-  const [frota,           setFrota]           = useState('')
-  const [tipoAplicacao,   setTipoAplicacao]   = useState('')
-  const [temperatura,     setTemperatura]     = useState('')
-  const [umidade,         setUmidade]         = useState('')
-  const [velocidadeVento, setVelocidadeVento] = useState('')
-  const [horaInicio,      setHoraInicio]      = useState('')
-  const [horaFim,         setHoraFim]         = useState('')
 
   const talhoesFazenda = talhoes.filter(t => t.fazenda_id === fazendaId)
 
@@ -103,31 +115,35 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
     }
     setErro(''); setSalvando(true)
 
+    const operacaoFinal = operacao || null
+    // Texto denormalizado (nome/identificador) mantém Lista/Detalhe/exports funcionando
+    const operadorSel = operadores.find(o => o.id === operadorId)
+    const frotaSel    = frotas.find(f => f.id === frotaId)
+
     try {
       // ── 1. Cria UMA aplicação com área total ─────────────────────────
       const { data: aplic, error: errAplic } = await supabase
         .from('aplicacoes')
         .insert({
-          fazenda_id:           fazendaId,
-          talhao_id:            talhoesSel[0],
-          cultura_id:           culturaId || canaPadrao,
+          fazenda_id:       fazendaId,
+          talhao_id:        talhoesSel[0],
+          cultura_id:       culturaId || canaPadrao,
           data,
           status,
-          area_aplicada_ha:     areaTotal || null,
-          praga_alvo:           praga || null,
-          condicoes_climaticas: clima || null,
-          observacoes:          obs || null,
-          responsavel_id:       userId,
-          vazao_l_ha:           vazao ? parseFloat(vazao) : null,
-          operador:             operador || null,
-          equipamento:          equipamento || null,
-          frota:                frota || null,
-          tipo_aplicacao:       tipoAplicacao || null,
-          temperatura:          temperatura ? parseFloat(temperatura) : null,
-          umidade:              umidade ? parseFloat(umidade) : null,
-          velocidade_vento:     velocidadeVento ? parseFloat(velocidadeVento) : null,
-          hora_inicio:          horaInicio || null,
-          hora_fim:             horaFim || null,
+          operacao:         operacaoFinal,
+          area_aplicada_ha: areaTotal || null,
+          responsavel_id:   userId,
+          vazao_l_ha:       vazao ? parseFloat(vazao) : null,
+          tipo_aplicacao:   tipoAplicacao || null,
+          hora_inicio:      horaInicio || null,
+          hora_fim:         horaFim || null,
+          horimetro_inicial: horimetroInicial ? parseFloat(horimetroInicial) : null,
+          horimetro_final:   horimetroFinal ? parseFloat(horimetroFinal) : null,
+          operador_id:      operadorId || null,
+          operador:         operadorSel?.nome || null,
+          equipamento:      equipamento || null,
+          frota_id:         frotaId || null,
+          frota:            frotaSel?.identificador || null,
         })
         .select('id').single()
 
@@ -173,6 +189,7 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
   return (
     <div className="p-4 space-y-4 max-w-2xl mx-auto pb-10">
 
+      {/* ── Cabeçalho ── */}
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-5 w-5" />
@@ -184,10 +201,10 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{erro}</div>
       )}
 
-      {/* ── CARD 1: Cultura + Fazenda + Talhões ── */}
+      {/* ── 1 · ONDE APLIQUEI? ── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">1. Cultura, Fazenda e Talhões</CardTitle>
+          <CardTitle className="text-sm">1 · Aplicação</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
@@ -269,10 +286,10 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
         </CardContent>
       </Card>
 
-      {/* ── CARD 2: Dados da Aplicação ── */}
+      {/* ── 2 · DADOS DA APLICAÇÃO ── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">2. Dados da Aplicação</CardTitle>
+          <CardTitle className="text-sm">2 · Dados da aplicação</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -281,20 +298,26 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
               <Input type="date" className="mt-1" value={data} onChange={e => setData(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium flex items-center gap-1.5">
-                <Droplets className="h-3.5 w-3.5 text-blue-500" />
-                Vazão da calda (L/ha)
-              </label>
-              <Input
-                type="number" step="1" min="0"
-                placeholder="Ex: 100, 150, 300"
-                className="mt-1"
-                value={vazao} onChange={e => setVazao(e.target.value)}
-              />
+              <label className="text-sm font-medium">Operação</label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={operacao} onChange={e => setOperacao(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                {OPERACOES.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Droplets className="h-3.5 w-3.5 text-blue-500" />
+                Vazão da calda (L/ha)
+              </label>
+              <Input type="number" step="1" min="0" placeholder="Ex: 100, 150, 300" className="mt-1"
+                value={vazao} onChange={e => setVazao(e.target.value)} />
+            </div>
             <div>
               <label className="text-sm font-medium">Status</label>
               <select
@@ -302,38 +325,22 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
                 value={status} onChange={e => setStatus(e.target.value as any)}
               >
                 <option value="encerrada">Encerrada</option>
-                <option value="em_andamento">Em Andamento</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">Tipo de Aplicação</label>
-              <select
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={tipoAplicacao} onChange={e => setTipoAplicacao(e.target.value)}
-              >
-                <option value="">Selecione...</option>
-                <option value="barra_total">Barra Total</option>
-                <option value="pingente">Pingente</option>
+                <option value="em_andamento">Em andamento</option>
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-sm font-medium">Operador</label>
-              <Input className="mt-1" placeholder="Nome do operador"
-                value={operador} onChange={e => setOperador(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Equipamento</label>
-              <Input className="mt-1" placeholder="Ex: Pulverizador"
-                value={equipamento} onChange={e => setEquipamento(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Frota</label>
-              <Input className="mt-1" placeholder="Ex: Trator 01"
-                value={frota} onChange={e => setFrota(e.target.value)} />
-            </div>
+          <div>
+            <label className="text-sm font-medium">Tipo de Aplicação</label>
+            <select
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={tipoAplicacao} onChange={e => setTipoAplicacao(e.target.value)}
+            >
+              <option value="">Selecione...</option>
+              <option value="barra_total">Barra Total</option>
+              <option value="pingente">Pingente</option>
+              <option value="canetinha">Canetinha</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -349,56 +356,14 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-medium">Praga / Alvo</label>
-            <Input className="mt-1" placeholder="Ex: Cigarrinha, Broca, Ferrugem..."
-              value={praga} onChange={e => setPraga(e.target.value)} />
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-sm font-medium">Temp. (°C)</label>
-              <Input type="number" step="0.1" placeholder="Ex: 28"
-                className="mt-1" value={temperatura} onChange={e => setTemperatura(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Umidade (%)</label>
-              <Input type="number" step="1" min="0" max="100" placeholder="Ex: 65"
-                className="mt-1" value={umidade} onChange={e => setUmidade(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Vento (km/h)</label>
-              <Input type="number" step="0.1" min="0" placeholder="Ex: 8"
-                className="mt-1" value={velocidadeVento} onChange={e => setVelocidadeVento(e.target.value)} />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Obs. Climáticas</label>
-            <Input className="mt-1" placeholder="Anotações sobre o clima..."
-              value={clima} onChange={e => setClima(e.target.value)} />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Observações</label>
-            <Input className="mt-1" placeholder="Observações adicionais..."
-              value={obs} onChange={e => setObs(e.target.value)} />
-          </div>
         </CardContent>
       </Card>
 
-      {/* ── CARD 3: Defensivos ── */}
+      {/* ── 3 · DEFENSIVOS ── */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-sm">3. Defensivos Utilizados</CardTitle>
-              {areaTotal > 0 && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Quantidade total = dose/ha × {formatarNumero(areaTotal, 2)} ha
-                </p>
-              )}
-            </div>
+            <CardTitle className="text-sm">3 · Defensivos</CardTitle>
             <Button size="sm" variant="outline" onClick={() => setItens(prev => [...prev, { ...ITEM_VAZIO }])}>
               <Plus className="h-4 w-4 mr-1" />Adicionar
             </Button>
@@ -406,9 +371,11 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
         </CardHeader>
         <CardContent className="space-y-4">
           {itens.map((it, i) => {
-            const def     = defensivos.find(d => d.id === it.defensivo_id)
-            const doseNum = parseFloat(it.dose_por_hectare) || 0
-            const qtdTot  = doseNum * areaTotal
+            const def      = defensivos.find(d => d.id === it.defensivo_id)
+            const un       = def?.unidade ?? 'L'
+            const doseNum  = parseFloat(it.dose_por_hectare) || 0
+            const esperado = doseNum * areaTotal
+            const loteSel  = lotes.find(l => l.id === it.lote_id)
 
             return (
               <div key={i} className="space-y-2 border rounded-md p-3 relative">
@@ -452,7 +419,6 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
                       value={it.lote_id}
                       onChange={e => atualizarItem(i, 'lote_id', e.target.value)}
                     >
-                      <option value="">— Sem lote (não desconta estoque)</option>
                       {lotesDoDefensivo(it.defensivo_id).map(l => (
                         <option key={l.id} value={l.id}>
                           NF {l.numero_nf ?? 'S/NF'} — saldo: {l.quantidade_atual} {def?.unidade}
@@ -462,57 +428,101 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2">
+                {/* Linha automática: saldo · área · esperado (evita erro de retirada) */}
+                {it.defensivo_id && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {loteSel && <span>Saldo: <strong className="text-foreground">{formatarNumero(loteSel.quantidade_atual, 2)} {un}</strong></span>}
+                    {areaTotal > 0 && <span>Área: <strong className="text-foreground">{formatarNumero(areaTotal, 2)} ha</strong></span>}
+                    {esperado > 0 && <span>Esperado: <strong className="text-blue-700">{formatarNumero(esperado, 2)} {un}</strong></span>}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="text-xs font-medium">
-                      Dose/ha ({def?.unidade ?? 'L'}/ha)
-                    </label>
+                    <label className="text-xs font-medium">Dose/ha ({un}/ha) *</label>
                     <Input type="number" step="0.001" placeholder="0.000" className="mt-1"
                       value={it.dose_por_hectare}
-                      onChange={e => {
-                        atualizarItem(i, 'dose_por_hectare', e.target.value)
-                        // Limpa qtd manual ao alterar dose para recalcular
-                        if (it.qtd_retirada === '') atualizarItem(i, 'qtd_retirada', '')
-                      }} />
+                      onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)} />
                   </div>
                   <div>
-                    <label className="text-xs font-medium">
-                      Qtd retirada ({def?.unidade ?? 'L'}) *
-                    </label>
+                    <label className="text-xs font-medium">Qtd retirada ({un}) *</label>
                     <Input
                       type="number" step="0.01" className="mt-1"
-                      placeholder={doseNum > 0 && areaTotal > 0
-                        ? `≈ ${formatarNumero(doseNum * areaTotal, 2)}`
-                        : '0.00'}
+                      placeholder={esperado > 0 ? `≈ ${formatarNumero(esperado, 2)}` : '0.00'}
                       value={it.qtd_retirada}
                       onChange={e => atualizarItem(i, 'qtd_retirada', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium">Sobrou ({def?.unidade ?? 'L'})</label>
+                    <label className="text-xs font-medium">Sobrou ({un})</label>
                     <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
                       value={it.quantidade_sobrou}
                       onChange={e => atualizarItem(i, 'quantidade_sobrou', e.target.value)} />
                   </div>
                 </div>
-
-                {/* Preview total */}
-                {qtdTot > 0 && talhoesSel.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-100 rounded px-3 py-2 text-xs text-blue-800 space-y-1">
-                    <div className="font-semibold">
-                      Total: {formatarNumero(qtdTot, 2)} {def?.unidade}
-                      {talhoesSel.length > 1 && ` · ${talhoesSel.length} talhões · ${formatarNumero(areaTotal, 2)} ha`}
-                    </div>
-                    {vazao && areaTotal > 0 && (
-                      <div className="text-blue-600">
-                        Calda total: {formatarNumero(parseFloat(vazao) * areaTotal, 0)} L
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             )
           })}
+        </CardContent>
+      </Card>
+
+      {/* ── 4 · DADOS OPERACIONAIS ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">4 · Dados operacionais</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Operador</label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={operadorId} onChange={e => setOperadorId(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                {operadores.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Equipamento</label>
+              <Input className="mt-1" placeholder="Ex: Pulverizador"
+                value={equipamento} onChange={e => setEquipamento(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Frota</label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={frotaId} onChange={e => setFrotaId(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                {CATEGORIA_FROTA.map(cat => {
+                  const doGrupo = frotas.filter(f => f.categoria === cat.key)
+                  if (doGrupo.length === 0) return null
+                  return (
+                    <optgroup key={cat.key} label={cat.label}>
+                      {doGrupo.map(f => <option key={f.id} value={f.id}>{f.identificador}</option>)}
+                    </optgroup>
+                  )
+                })}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Horímetro inicial</label>
+              <Input type="number" step="0.1" min="0" placeholder="Ex: 1234.5" className="mt-1"
+                value={horimetroInicial} onChange={e => setHorimetroInicial(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Horímetro final</label>
+              <Input type="number" step="0.1" min="0" placeholder="Ex: 1240.0" className="mt-1"
+                value={horimetroFinal} onChange={e => setHorimetroFinal(e.target.value)} />
+            </div>
+          </div>
         </CardContent>
       </Card>
 

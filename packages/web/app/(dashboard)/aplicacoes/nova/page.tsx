@@ -16,6 +16,8 @@ export default async function NovaAplicacaoPage() {
     { data: lotes },
     { data: profile },
     { data: culturas },
+    { data: operadores },
+    { data: frotas },
   ] = await Promise.all([
     supabase.from('fazendas').select('id, nome').order('nome'),
     supabase.from('talhoes').select('id, nome, fazenda_id, area_ha').order('nome'),
@@ -23,6 +25,8 @@ export default async function NovaAplicacaoPage() {
     supabase.from('lotes').select('id, numero_nf, defensivo_id, quantidade_atual').gt('quantidade_atual', 0).order('data_vencimento'),
     supabase.from('profiles').select('id, nome, role').eq('id', user.id).single(),
     supabase.from('culturas').select('id, nome').eq('ativo', true).order('nome'),
+    supabase.from('operadores').select('id, nome').eq('ativo', true).order('nome'),
+    supabase.from('frotas').select('id, identificador, categoria').eq('ativo', true).order('identificador'),
   ])
 
   return (
@@ -32,6 +36,8 @@ export default async function NovaAplicacaoPage() {
       defensivos={defensivos ?? []}
       lotes={lotes ?? []}
       culturas={culturas ?? []}
+      operadores={operadores ?? []}
+      frotas={frotas ?? []}
       userId={user.id}
       userName={profile?.nome ?? ''}
     />
