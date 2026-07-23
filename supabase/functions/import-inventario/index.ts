@@ -29,9 +29,12 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
+    // SB_SECRET_KEY = nova secret key (sb_secret_...), definida via `supabase secrets set`.
+    // Nome próprio (o prefixo SUPABASE_ é reservado e não pode ser sobrescrito).
+    // Substitui a service_role legacy (SUPABASE_SERVICE_ROLE_KEY).
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      Deno.env.get('SB_SECRET_KEY')!
     )
 
     // Verificar role admin
