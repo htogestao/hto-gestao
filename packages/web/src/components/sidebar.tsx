@@ -20,17 +20,17 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',        label: 'Dashboard',       icon: LayoutDashboard },
-  { href: '/fazendas',         label: 'Fazendas',        icon: MapPin },
-  { href: '/talhoes',          label: 'Talhões',         icon: Layers },
+  { href: '/fazendas',         label: 'Fazendas',        icon: MapPin,         fieldHidden: true },
+  { href: '/talhoes',          label: 'Talhões',         icon: Layers,         fieldHidden: true },
   { href: '/defensivos',       label: 'Defensivos',      icon: FlaskConical,   fieldHidden: true },
   { href: '/estoque',          label: 'Estoque & Lotes', icon: Package },
   { href: '/compras',          label: 'Compras (NFs)',   icon: ShoppingCart,   fieldHidden: true },
   { href: '/aplicacoes',       label: 'Aplicações',      icon: Tractor },
   { href: '/movimentacoes',    label: 'Movimentações',   icon: ArrowLeftRight },
-  { href: '/relatorios',       label: 'Relatórios',      icon: FileText },
+  { href: '/relatorios',       label: 'Relatórios',      icon: FileText,       fieldHidden: true },
   { href: '/importar',         label: 'Importar Excel',  icon: Upload,         adminOnly: true },
   { href: '/exportar',         label: 'Exportar Excel',  icon: Download,       fieldHidden: true },
-  { href: '/inventario',       label: 'Inventário Físico', icon: ClipboardList },
+  { href: '/inventario',       label: 'Inventário Físico', icon: ClipboardList, fieldHidden: true },
   { href: '/usuarios',         label: 'Usuários',        icon: Users,          adminOnly: true },
   { href: '/perfil',           label: 'Meu Perfil',      icon: UserCircle },
 ]

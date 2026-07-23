@@ -47,7 +47,7 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
   const supabase = createClient()
   const router   = useRouter()
   const isAdmin  = role === 'admin'
-  const podeExcluir = true // admin, viewer e field podem excluir (field só as próprias, via RLS)
+  const podeExcluir = role === 'admin' // só admin apaga; RLS (aplicacoes_delete) é admin-only
 
   const [aplicacoes,    setAplicacoes]  = useState(inicial)
   const [busca,         setBusca]       = useState('')

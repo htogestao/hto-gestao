@@ -45,7 +45,7 @@ export async function middleware(request: NextRequest) {
 
   if (user && !inativo && isDash) {
     if (profile?.role === 'field') {
-      const FIELD_ALLOWED = ['/dashboard', '/aplicacoes', '/movimentacoes', '/estoque', '/fazendas', '/talhoes', '/perfil', '/inventario', '/relatorios']
+      const FIELD_ALLOWED = ['/dashboard', '/aplicacoes', '/movimentacoes', '/estoque', '/perfil']
       const allowed = FIELD_ALLOWED.some(p => path === p || path.startsWith(p + '/'))
       if (!allowed)
         return NextResponse.redirect(new URL('/dashboard', request.url))
