@@ -121,18 +121,20 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-blue-600" />
-              Valor em Estoque
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{formatarMoeda(valorEstoque)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Custo médio ponderado</p>
-          </CardContent>
-        </Card>
+        {(profile?.role === 'admin' || profile?.role === 'viewer') && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-blue-600" />
+                Valor em Estoque
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{formatarMoeda(valorEstoque)}</p>
+              <p className="text-xs text-muted-foreground mt-1">Custo médio ponderado</p>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="pb-2">
