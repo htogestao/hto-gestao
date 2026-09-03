@@ -104,25 +104,40 @@ export function RelatoriosClient({ role, fazendas, culturas }: { role: string; f
         imprimirCompras(lotes ?? [], dataIni, dataFim)
 
       } else if (tipo === 'custo_talhao') {
-        let q2 = supabase2.from('aplicacoes')
-          .select(`fazenda_id, talhao_id, area_aplicada_ha,
-            fazenda:fazendas(nome),
-            talhao:talhoes(nome, area_ha),
-            itens:aplicacao_itens(quantidade_usada, lote:lotes(preco_unitario), defensivo:defensivos(nome_comercial, classe))`)
-          .gte('data', dataIni).lte('data', dataFim).eq('status', 'encerrada')
-        if (fazenda !== 'todas') q2 = q2.eq('fazenda_id', fazenda)
-        if (cultura !== 'todas') q2 = q2.eq('cultura_id', cultura)
-        const { data: aplicCusto } = await q2
-        imprimirCustoTalhao(aplicCusto ?? [], dataIni, dataFim)
+        // Fonte única (SSFT): custo/área/custo-ha vêm da RPC indicadores_custo (V4).
+        // A v_custo_talhao entra só para o detalhamento por classe (descritivo).
+        const fazId = fazenda !== 'todas' ? fazenda : null
+        const culId = cultura !== 'todas' ? cultura : null
+        const vctQ = () => {
+          let q = supabase2.from('v_custo_talhao').select('talhao_id, classe, custo_talhao')
+            .gte('data', dataIni).lte('data', dataFim)
+          if (fazId) q = q.eq('fazenda_id', fazId)
+          if (culId) q = q.eq('cultura_id', culId)
+          return q
+        }
+        const [{ data: ind }, { data: geral }, { data: vct }, { data: tals }] = await Promise.all([
+          supabase2.rpc('indicadores_custo', { p_dimensao: 'talhao', p_data_ini: dataIni, p_data_fim: dataFim, p_fazenda_id: fazId, p_talhao_id: null, p_cultura_id: culId }),
+          supabase2.rpc('indicadores_custo', { p_dimensao: 'geral',  p_data_ini: dataIni, p_data_fim: dataFim, p_fazenda_id: fazId, p_talhao_id: null, p_cultura_id: culId }),
+          vctQ(),
+          supabase2.from('talhoes').select('id, nome, area_ha, fazenda:fazendas(nome)'),
+        ])
+        imprimirCustoTalhao(ind ?? [], (geral ?? [])[0] ?? null, vct ?? [], (tals ?? []) as any, dataIni, dataFim)
 
       } else if (tipo === 'executivo') {
-        let qExec = supabase2.from('aplicacoes')
-          .select(`fazenda_id, area_aplicada_ha, fazenda:fazendas(nome),
-            itens:aplicacao_itens(quantidade_usada, lote:lotes(preco_unitario), defensivo:defensivos(nome_comercial))`)
-          .gte('data', dataIni).lte('data', dataFim).eq('status', 'encerrada')
-        if (cultura !== 'todas') qExec = qExec.eq('cultura_id', cultura)
-        const { data: aplic } = await qExec
-        imprimirExecutivo(aplic ?? [], dataIni, dataFim)
+        const culId = cultura !== 'todas' ? cultura : null
+        const vctQ = () => {
+          let q = supabase2.from('v_custo_talhao').select('defensivo_id, qtd_liquida_talhao')
+            .gte('data', dataIni).lte('data', dataFim)
+          if (culId) q = q.eq('cultura_id', culId)
+          return q
+        }
+        const [{ data: ind }, { data: geral }, { data: vct }, { data: defs }] = await Promise.all([
+          supabase2.rpc('indicadores_custo', { p_dimensao: 'fazenda', p_data_ini: dataIni, p_data_fim: dataFim, p_fazenda_id: null, p_talhao_id: null, p_cultura_id: culId }),
+          supabase2.rpc('indicadores_custo', { p_dimensao: 'geral',   p_data_ini: dataIni, p_data_fim: dataFim, p_fazenda_id: null, p_talhao_id: null, p_cultura_id: culId }),
+          vctQ(),
+          supabase2.from('defensivos').select('id, nome_comercial, unidade'),
+        ])
+        imprimirExecutivo(ind ?? [], (geral ?? [])[0] ?? null, vct ?? [], defs ?? [], fazendas, dataIni, dataFim)
       }
     } catch (e: any) {
       if (pdfWin) {
@@ -454,147 +469,112 @@ function imprimirCompras(lotes: Record<string,unknown>[], ini: string, fim: stri
     </table>`)
 }
 
-function imprimirCustoTalhao(aplic: Record<string,unknown>[], ini: string, fim: string) {
-  type AplicItem = {
-    fazenda_id: string; talhao_id: string; area_aplicada_ha: number | null
-    fazenda: { nome: string } | null
-    talhao: { nome: string; area_ha: number | null } | null
-    itens: Array<{
-      quantidade_usada: number
-      lote: { preco_unitario: number | null } | null
-      defensivo: { nome_comercial: string; classe: string } | null
-    }>
-  }
-  const aplicTyped = aplic as unknown as AplicItem[]
+const badgeConfiab = (c: string) =>
+  c === 'ALTA'  ? '<span style="color:#15803d">●</span> Alta'
+  : c === 'MEDIA' ? '<span style="color:#b45309">●</span> Média'
+  : '<span style="color:#b91c1c">●</span> Baixa'
 
-  // Agrupar por talhão
-  const porTalhao = new Map<string, {
-    fazenda: string; talhao: string; area_ha: number
-    areaAplicada: number; custo: number; count: number
-    inseticida: number; fungicida: number; herbicida: number; outros: number
-  }>()
-
-  aplicTyped.forEach(a => {
-    const key     = a.talhao_id
-    const fazenda = a.fazenda?.nome ?? '—'
-    const talhao  = a.talhao?.nome ?? '—'
-    const area_ha = a.talhao?.area_ha ?? 0
-    const areaAp  = a.area_aplicada_ha ?? 0
-    const custo   = (a.itens ?? []).reduce((s, i) => s + i.quantidade_usada * (i.lote?.preco_unitario ?? 0), 0)
-
-    const ex = porTalhao.get(key) ?? { fazenda, talhao, area_ha, areaAplicada: 0, custo: 0, count: 0, inseticida: 0, fungicida: 0, herbicida: 0, outros: 0 }
-
-    let ins = ex.inseticida, fun = ex.fungicida, her = ex.herbicida, out = ex.outros
-    ;(a.itens ?? []).forEach(i => {
-      const c = i.defensivo?.classe ?? ''
-      const q = i.quantidade_usada * (i.lote?.preco_unitario ?? 0)
-      if (['inseticida','acaricida','nematicida'].includes(c)) ins += q
-      else if (c === 'fungicida') fun += q
-      else if (c === 'herbicida') her += q
-      else out += q
-    })
-
-    porTalhao.set(key, { fazenda, talhao, area_ha, areaAplicada: ex.areaAplicada + areaAp, custo: ex.custo + custo, count: ex.count + 1, inseticida: ins, fungicida: fun, herbicida: her, outros: out })
+function imprimirCustoTalhao(
+  ind: Array<{ grupo_id: string; custo_total: number | null; area_tratada_ha: number | null; custo_ha: number | null; confiabilidade: string; possui_sem_preco: boolean }>,
+  geral: { custo_total: number | null; area_tratada_ha: number | null; custo_ha: number | null } | null,
+  vct: Array<{ talhao_id: string; classe: string; custo_talhao: number | null }>,
+  tals: Array<{ id: string; nome: string; area_ha: number | null; fazenda: { nome: string } | null }>,
+  ini: string, fim: string,
+) {
+  const talMap = new Map(tals.map(t => [t.id, { nome: t.nome, fazenda: t.fazenda?.nome ?? '—' }]))
+  // Detalhamento por classe (descritivo; o número oficial vem da RPC)
+  const classeMap = new Map<string, { inseticida: number; fungicida: number; herbicida: number; outros: number }>()
+  vct.forEach(r => {
+    const e = classeMap.get(r.talhao_id) ?? { inseticida: 0, fungicida: 0, herbicida: 0, outros: 0 }
+    const c = r.custo_talhao ?? 0
+    if (['inseticida','acaricida','nematicida'].includes(r.classe)) e.inseticida += c
+    else if (r.classe === 'fungicida') e.fungicida += c
+    else if (r.classe === 'herbicida') e.herbicida += c
+    else e.outros += c
+    classeMap.set(r.talhao_id, e)
   })
 
-  const sorted = [...porTalhao.values()].sort((a, b) => b.custo - a.custo)
-  const totalCusto = sorted.reduce((s, t) => s + t.custo, 0)
-  const totalArea  = sorted.reduce((s, t) => s + t.areaAplicada, 0)
-
-  const rows = sorted.map(t => `
+  const sorted = [...ind].sort((a, b) => (b.custo_total ?? -1) - (a.custo_total ?? -1))
+  const rows = sorted.map(t => {
+    const info = talMap.get(t.grupo_id) ?? { nome: '—', fazenda: '—' }
+    const cl = classeMap.get(t.grupo_id) ?? { inseticida: 0, fungicida: 0, herbicida: 0, outros: 0 }
+    return `
     <tr>
-      <td>${t.fazenda}</td>
-      <td>${t.talhao}</td>
-      <td class="right">${formatarNumero(t.area_ha, 1)} ha</td>
-      <td class="right">${t.count}</td>
-      <td class="right">${t.inseticida > 0 ? formatarMoeda(t.inseticida) : '—'}</td>
-      <td class="right">${t.fungicida > 0 ? formatarMoeda(t.fungicida) : '—'}</td>
-      <td class="right">${t.herbicida > 0 ? formatarMoeda(t.herbicida) : '—'}</td>
-      <td class="right"><strong>${formatarMoeda(t.custo)}</strong></td>
-      <td class="right"><strong>${t.area_ha > 0 ? formatarMoeda(t.custo / t.area_ha) + '/ha' : '—'}</strong></td>
-    </tr>`).join('')
+      <td>${info.fazenda}</td>
+      <td>${info.nome}</td>
+      <td class="right">${formatarNumero(t.area_tratada_ha ?? 0, 1)} ha</td>
+      <td class="right">${cl.inseticida > 0 ? formatarMoeda(cl.inseticida) : '—'}</td>
+      <td class="right">${cl.fungicida > 0 ? formatarMoeda(cl.fungicida) : '—'}</td>
+      <td class="right">${cl.herbicida > 0 ? formatarMoeda(cl.herbicida) : '—'}</td>
+      <td class="right"><strong>${t.custo_total != null ? formatarMoeda(t.custo_total) : '<span style="color:#b91c1c">sem preço</span>'}</strong></td>
+      <td class="right"><strong>${t.custo_ha != null ? formatarMoeda(t.custo_ha) + '/ha' : '—'}</strong></td>
+      <td class="right">${badgeConfiab(t.confiabilidade)}</td>
+    </tr>`
+  }).join('')
 
   abrirJanelaPDF('Custo por Talhão', `
     <h1>Custo por Talhão — ${formatarData(ini)} a ${formatarData(fim)}</h1>
     <div class="sub">
-      Total gasto: <strong>${formatarMoeda(totalCusto)}</strong> ·
-      Área total aplicada: ${formatarNumero(totalArea, 1)} ha ·
-      Custo médio: ${totalArea > 0 ? formatarMoeda(totalCusto / totalArea) + '/ha' : '—'} ·
+      Total gasto: <strong>${geral?.custo_total != null ? formatarMoeda(geral.custo_total) : '—'}</strong> ·
+      Área tratada: ${formatarNumero(geral?.area_tratada_ha ?? 0, 1)} ha ·
+      Custo/ha: ${geral?.custo_ha != null ? formatarMoeda(geral.custo_ha) + '/ha' : '—'} ·
       Gerado em ${new Date().toLocaleString('pt-BR')}
     </div>
+    <div class="sub" style="color:#64748b;font-size:11px">Custo líquido (retirado − sobra), fonte única auditável. Área = área tratada.</div>
     <table>
       <thead>
         <tr>
-          <th>Fazenda</th><th>Talhão</th><th class="right">Área</th>
-          <th class="right">Aplic.</th>
+          <th>Fazenda</th><th>Talhão</th><th class="right">Área trat.</th>
           <th class="right">Inseticida</th><th class="right">Fungicida</th><th class="right">Herbicida</th>
-          <th class="right">Total</th><th class="right">R$/ha</th>
+          <th class="right">Total</th><th class="right">R$/ha</th><th class="right">Confiab.</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`)
 }
 
-function imprimirExecutivo(aplic: Record<string,unknown>[], ini: string, fim: string) {
-  type AplicItem = {
-    fazenda_id: string
-    area_aplicada_ha: number | null
-    fazenda: { nome: string } | null
-    itens: Array<{
-      quantidade_usada: number
-      lote: { preco_unitario: number | null } | null
-      defensivo: { nome_comercial: string } | null
-    }>
-  }
-  const aplicTyped = aplic as unknown as AplicItem[]
+function imprimirExecutivo(
+  ind: Array<{ grupo_id: string; custo_total: number | null; area_tratada_ha: number | null; custo_ha: number | null; confiabilidade: string }>,
+  geral: { custo_total: number | null; area_tratada_ha: number | null; custo_ha: number | null } | null,
+  vct: Array<{ defensivo_id: string; qtd_liquida_talhao: number | null }>,
+  defs: Array<{ id: string; nome_comercial: string; unidade: string }>,
+  fazendas: FazSimple[],
+  ini: string, fim: string,
+) {
+  const fazMap = new Map(fazendas.map(f => [f.id, f.nome]))
+  const defMap = new Map(defs.map(d => [d.id, d]))
 
-  // Agrupar por fazenda
-  const porFazenda = new Map<string, { nome: string; area: number; custo: number; count: number }>()
-  aplicTyped.forEach(a => {
-    const key  = a.fazenda_id
-    const nome = a.fazenda?.nome ?? key
-    const area = a.area_aplicada_ha ?? 0
-    const custo = (a.itens ?? []).reduce((s, i) => s + i.quantidade_usada * (i.lote?.preco_unitario ?? 0), 0)
-    const ex = porFazenda.get(key) ?? { nome, area: 0, custo: 0, count: 0 }
-    porFazenda.set(key, { nome, area: ex.area + area, custo: ex.custo + custo, count: ex.count + 1 })
-  })
-
-  const totalCusto = [...porFazenda.values()].reduce((s, f) => s + f.custo, 0)
-  const totalArea  = [...porFazenda.values()].reduce((s, f) => s + f.area, 0)
-
-  const rowsFaz = [...porFazenda.values()].sort((a,b) => b.custo - a.custo).map(f => `
+  const rowsFaz = [...ind].sort((a, b) => (b.custo_total ?? -1) - (a.custo_total ?? -1)).map(f => `
     <tr>
-      <td>${f.nome}</td>
-      <td class="right">${formatarNumero(f.area, 1)} ha</td>
-      <td class="right">${f.count}</td>
-      <td class="right">${formatarMoeda(f.custo)}</td>
-      <td class="right">${f.area > 0 ? formatarMoeda(f.custo / f.area) : '—'}/ha</td>
+      <td>${fazMap.get(f.grupo_id) ?? f.grupo_id}</td>
+      <td class="right">${formatarNumero(f.area_tratada_ha ?? 0, 1)} ha</td>
+      <td class="right">${f.custo_total != null ? formatarMoeda(f.custo_total) : '—'}</td>
+      <td class="right">${f.custo_ha != null ? formatarMoeda(f.custo_ha) + '/ha' : '—'}</td>
+      <td class="right">${badgeConfiab(f.confiabilidade)}</td>
     </tr>`).join('')
 
-  // Defensivos mais usados
+  // Defensivos mais usados (volume líquido consumido)
   const porDef = new Map<string, number>()
-  aplicTyped.forEach(a => {
-    (a.itens ?? []).forEach(i => {
-      const n = i.defensivo?.nome_comercial ?? '?'
-      porDef.set(n, (porDef.get(n) ?? 0) + i.quantidade_usada)
-    })
-  })
-  const rowsDef = [...porDef.entries()].sort((a,b) => b[1]-a[1]).slice(0,10).map(([n,q]) =>
-    `<tr><td>${n}</td><td class="right">${formatarNumero(q, 1)}</td></tr>`).join('')
+  vct.forEach(r => porDef.set(r.defensivo_id, (porDef.get(r.defensivo_id) ?? 0) + (r.qtd_liquida_talhao ?? 0)))
+  const rowsDef = Array.from(porDef.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, q]) => {
+    const d = defMap.get(id)
+    return `<tr><td>${d?.nome_comercial ?? '?'}</td><td class="right">${formatarNumero(q, 1)} ${d?.unidade ?? ''}</td></tr>`
+  }).join('')
 
   abrirJanelaPDF('Relatório Executivo', `
     <h1>Relatório Executivo — ${formatarData(ini)} a ${formatarData(fim)}</h1>
-    <div class="sub">Total aplicado: ${formatarMoeda(totalCusto)} · Área: ${formatarNumero(totalArea,1)} ha · Custo médio: ${totalArea > 0 ? formatarMoeda(totalCusto/totalArea) : '—'}/ha</div>
+    <div class="sub">Total aplicado: ${geral?.custo_total != null ? formatarMoeda(geral.custo_total) : '—'} · Área tratada: ${formatarNumero(geral?.area_tratada_ha ?? 0, 1)} ha · Custo/ha: ${geral?.custo_ha != null ? formatarMoeda(geral.custo_ha) + '/ha' : '—'}</div>
+    <div class="sub" style="color:#64748b;font-size:11px">Custo líquido (retirado − sobra), fonte única auditável.</div>
 
     <div class="section">Custo por Fazenda</div>
     <table>
-      <thead><tr><th>Fazenda</th><th class="right">Área (ha)</th><th class="right">Aplicações</th><th class="right">Custo Total</th><th class="right">Custo/ha</th></tr></thead>
+      <thead><tr><th>Fazenda</th><th class="right">Área trat. (ha)</th><th class="right">Custo Total</th><th class="right">Custo/ha</th><th class="right">Confiab.</th></tr></thead>
       <tbody>${rowsFaz}</tbody>
     </table>
 
-    <div class="section">Defensivos Mais Utilizados (volume)</div>
+    <div class="section">Defensivos Mais Utilizados (volume líquido)</div>
     <table>
-      <thead><tr><th>Defensivo</th><th class="right">Volume Total</th></tr></thead>
+      <thead><tr><th>Defensivo</th><th class="right">Volume</th></tr></thead>
       <tbody>${rowsDef}</tbody>
     </table>`)
 }
