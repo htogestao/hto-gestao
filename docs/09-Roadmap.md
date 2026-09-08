@@ -173,12 +173,13 @@ sequenceDiagram
 > Sequência definida em sessão de planejamento (2026-09-08). Ordem fixa — não pular etapas. Cada item vira `[x]` quando concluído e verificado, não quando só "codado".
 
 ### 1. Fechar pendências já prontas
-- [ ] Commit + push do seletor de organização (migration `012` + UI no sidebar) → deploy Vercel
-- [ ] Cadastrar estoque inicial da AGRO MÁXIMO: 11 defensivos + lotes correspondentes
+- [x] Commit + push do seletor de organização (migration `012` + UI no sidebar) → deploy Vercel
+- [x] Cadastrar estoque inicial da AGRO MÁXIMO: 11 defensivos + lotes correspondentes
 
 ### 2. Dívidas de estoque represadas (bloqueiam confiança no dado antes do adubo)
-- [ ] Investigar **causa raiz** do bug de estoque subestimado (~5.616 un "sumidas", carga de 08/06/2026) antes de propor qualquer correção
-- [ ] Import de estoque hoje **soma** em vez de **substituir** — confirmar comportamento esperado (contagem física = substitui, recomendado) e corrigir a Edge Function `import-inventario`
+- [x] Investigar **causa raiz** do bug de estoque subestimado (86 lotes zerados, carga de 08/06/2026) — `git log` descartou o código versionado (nenhum commit tocou `importarDefensivos()` entre 31/05 e o incidente); origem = script SQL avulso não versionado. Ajuste retroativo de +6.023 un lançado como `ajuste` no razão (`supabase/ajuste_retroativo_86_lotes_jun2026.sql`), proporcional por lote, observação documentando que é estimativa pendente de confirmação física.
+- [x] Import de estoque de **defensivos** (`importarDefensivos`) corrigido: reimportar agora **substitui** o lote "Estoque inicial"/"VENCIDO" existente por produto, em vez de duplicar.
+- [ ] Import de **fazendas/talhões** via Edge Function `import-inventario` — mesmo padrão de duplicação não verificado ainda (fora do escopo desta rodada, que era só defensivos/lotes)
 
 ### 3. Adubo como classe de defensivo (kg/ha) — sem feature nova
 - [ ] Cadastrar calcário, gesso, ureia, KCl (e afins) na tela **Defensivos** existente — sem tela separada "Adubos"
