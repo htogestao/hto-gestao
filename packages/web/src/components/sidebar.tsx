@@ -3,10 +3,12 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
 import {
   LayoutDashboard, MapPin, Layers, FlaskConical, Package,
   ShoppingCart, Tractor, ArrowLeftRight, FileText,
   Upload, Download, Users, LogOut, Leaf, ChevronRight, UserCircle, ClipboardList,
+  Building2,
 } from 'lucide-react'
 import type { UserRole } from '@agro/shared'
 
@@ -38,17 +40,32 @@ const NAV_ITEMS: NavItem[] = [
 interface SidebarProps {
   role: UserRole
   userName: string
+  organizacaoAtual: string
+  organizacoes: { id: string; nome: string }[]
   onClose?: () => void
 }
 
-export function Sidebar({ role, userName, onClose }: SidebarProps) {
+export function Sidebar({ role, userName, organizacaoAtual, organizacoes, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
+  const [trocando, setTrocando] = useState(false)
 
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  async function handleTrocarOrganizacao(novaOrganizacaoId: string) {
+    if (!novaOrganizacaoId || novaOrganizacaoId === organizacoes.find(o => o.nome === organizacaoAtual)?.id) return
+    setTrocando(true)
+    const { error } = await supabase.rpc('trocar_organizacao', { p_organizacao_id: novaOrganizacaoId })
+    if (error) {
+      alert('Não foi possível trocar de empresa: ' + error.message)
+      setTrocando(false)
+      return
+    }
+    window.location.href = '/dashboard'
   }
 
   const visibleItems = NAV_ITEMS.filter(item => {
@@ -79,6 +96,32 @@ export function Sidebar({ role, userName, onClose }: SidebarProps) {
         )}>
           {role === 'admin' ? 'Analista / Supervisor' : role === 'field' ? 'Líder de Campo' : 'Patrão / Produtor'}
         </span>
+
+        {organizacoes.length > 1 ? (
+          <div className="mt-3">
+            <label className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60 mb-1">
+              <Building2 className="h-3 w-3" />
+              Empresa
+            </label>
+            <select
+              value={organizacoes.find(o => o.nome === organizacaoAtual)?.id ?? ''}
+              onChange={e => handleTrocarOrganizacao(e.target.value)}
+              disabled={trocando}
+              className="w-full text-xs rounded-md px-2 py-1.5 bg-sidebar-muted text-sidebar-foreground border border-sidebar-muted"
+            >
+              {organizacoes.map(o => (
+                <option key={o.id} value={o.id}>{o.nome}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          organizacaoAtual && (
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
+              <Building2 className="h-3 w-3" />
+              {organizacaoAtual}
+            </p>
+          )
+        )}
       </div>
 
       {/* Navigation */}

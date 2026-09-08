@@ -16,10 +16,14 @@ export function ClientLayout({
   children,
   role,
   userName,
+  organizacaoAtual,
+  organizacoes,
 }: {
   children: React.ReactNode
   role: UserRole
   userName: string
+  organizacaoAtual: string
+  organizacoes: { id: string; nome: string }[]
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -28,7 +32,7 @@ export function ClientLayout({
 
       {/* Sidebar desktop — sempre visível em telas grandes */}
       <div className="hidden md:flex">
-        <Sidebar role={role} userName={userName} />
+        <Sidebar role={role} userName={userName} organizacaoAtual={organizacaoAtual} organizacoes={organizacoes} />
       </div>
 
       {/* Overlay mobile */}
@@ -44,7 +48,7 @@ export function ClientLayout({
         fixed inset-y-0 left-0 z-50 md:hidden transition-transform duration-300
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <Sidebar role={role} userName={userName} onClose={() => setSidebarOpen(false)} />
+        <Sidebar role={role} userName={userName} organizacaoAtual={organizacaoAtual} organizacoes={organizacoes} onClose={() => setSidebarOpen(false)} />
       </div>
 
       {/* Conteúdo principal */}

@@ -168,7 +168,32 @@ sequenceDiagram
 
 ---
 
-> **Nota de escopo:** esta documentação é 100% observacional. Nenhum arquivo de código, banco, migration ou configuração foi alterado. Itens marcados "a confirmar no banco" dependem de acesso ao Supabase, não disponível nesta análise.
+## Parte E — Força-tarefa em andamento (checklist ativo)
+
+> Sequência definida em sessão de planejamento (2026-09-08). Ordem fixa — não pular etapas. Cada item vira `[x]` quando concluído e verificado, não quando só "codado".
+
+### 1. Fechar pendências já prontas
+- [ ] Commit + push do seletor de organização (migration `012` + UI no sidebar) → deploy Vercel
+- [ ] Cadastrar estoque inicial da AGRO MÁXIMO: 11 defensivos + lotes correspondentes
+
+### 2. Dívidas de estoque represadas (bloqueiam confiança no dado antes do adubo)
+- [ ] Investigar **causa raiz** do bug de estoque subestimado (~5.616 un "sumidas", carga de 08/06/2026) antes de propor qualquer correção
+- [ ] Import de estoque hoje **soma** em vez de **substituir** — confirmar comportamento esperado (contagem física = substitui, recomendado) e corrigir a Edge Function `import-inventario`
+
+### 3. Adubo como classe de defensivo (kg/ha) — sem feature nova
+- [ ] Cadastrar calcário, gesso, ureia, KCl (e afins) na tela **Defensivos** existente — sem tela separada "Adubos"
+- [ ] Verificar se dose no schema/tela é numérico livre com unidade configurável ou tem "L/ha" fixo (rótulo/validação) — se fixo, adicionar seletor de unidade (kg/ha vs L/ha) por lançamento
+- [ ] Definir classe de calcário/gesso (corretivos de solo, não fertilizante em sentido estrito) dentro do CHECK atual de `defensivos.classe`
+- [ ] Custo por hectare: **nada novo a construir** — RPC `indicadores_custo` + views V1-V4 (rodando em "Custo por Talhão"/"Executivo" desde 24/07) já cobrem; adubo entra automático assim que virar `defensivo` com `lote`
+
+### 4. Débitos de segurança/técnicos (depois — não bloqueiam os itens acima)
+- [ ] Ligar `inventario_fisico`/`inventario_itens` à UI (RPC `aplicar_inventario` já existe e funciona)
+- [ ] Fechar exposição de preço pro papel `field` via `lotes` (rotear para `lotes_field_view`)
+- [ ] Consolidar migrations `001`–`012` vs. SQL avulso — banco de produção hoje não é 100% reproduzível do zero só com o repositório
+
+---
+
+> **Nota de escopo (atualizada 2026-09-08):** as Partes A-D acima descrevem o estado observado até a análise original — não são mais 100% atuais (migrations `005`–`012` já foram aplicadas desde então: multiempresa, views de custo, RPC de indicadores, catálogo ADAPAR, seletor de organização). A Parte E é a fonte viva de "o que falta agora"; Partes A-D continuam válidas como referência de arquitetura e dívidas de origem.
 
 ---
 
