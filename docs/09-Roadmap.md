@@ -188,6 +188,12 @@ sequenceDiagram
 - [x] `seed.sql` recriado com placeholder `CHANGE_ME_BEFORE_RUNNING` em vez de senha literal.
 - ⚠️ **Lembrete permanente:** se `Agro@2025!` foi reaproveitada em qualquer conta real, trocar manualmente — impossível verificar isso remotamente.
 
+### 2.2 Vazamento de dado entre empresas (crítico — resolvido 2026-09-08)
+- [x] **Achado:** `estoque_atual()`, `alertas_ativos()`, `lotes_por_vencimento()`, `encerrar_aplicacao()` e `aplicar_inventario()` são `SECURITY DEFINER` (ignoram RLS por definição) e nunca filtravam por `organizacao_id` — escritas antes do multiempresa existir. Vazamento confirmado: usuário via 241 defensivos (230 Agrícola MV + 11 AGRO MÁXIMO) no Dashboard/Estoque/Relatórios/Exportar/Inventário. As duas últimas também permitiam **escrever** em empresa errada (encerrar aplicação ou aplicar ajuste de estoque de outra empresa, sabendo o UUID).
+- [x] **Alcance real:** só 2 empresas no sistema; usuário da AGRO MÁXIMO nunca logou — nenhum cliente real chegou a ver o vazamento, só apareceu em teste do seletor de empresa.
+- [x] **Corrigido:** `014_fix_vazamento_org_rpcs.sql` — todas as 5 funções + as 2 triggers de baixa/devolução (defesa em profundidade) agora filtram por `current_org()`. Testado simulando as duas empresas via `request.jwt.claims`: cada uma vê só o próprio número (11 / 230).
+- [x] `CONTRIBUTING.md` ganhou checklist obrigatório pra função `SECURITY DEFINER` nova, pra não repetir isso.
+
 ### 3. SQL solto versionado + processo (concluído 2026-09-08)
 - [x] `013_operacao_aplicacoes.sql` formaliza `aplicacoes.operacao` (já em produção, `IF NOT EXISTS`, testada sem erro)
 - [x] Rascunhos redundantes removidos (`add_horimetro_aplicacoes.sql`, `sprint1_views_v1_v4.sql`, `add_operacao_aplicacoes.sql` — conteúdo já capturado em `005`, `007`, `013`)

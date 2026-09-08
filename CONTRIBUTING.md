@@ -22,6 +22,17 @@ Carga de estoque inicial de um cliente, ajuste pontual de inventário, import de
 
 Exemplos já seguindo esse padrão: `supabase/agro_maximo_estoque_inicial.sql`, `supabase/ajuste_retroativo_86_lotes_jun2026.sql`, `supabase/catalogo_agrotoxicos_pr_seed.sql`.
 
+## Multiempresa (`organizacao_id`) — checklist obrigatório
+
+Toda função `SECURITY DEFINER` roda com privilégio elevado e **ignora a RLS por definição** — inclusive o `org_guard`. Se ela lê ou escreve numa tabela com `organizacao_id`, o filtro por empresa tem que estar **dentro da própria função**, escrito à mão.
+
+Achado real (2026-09-08): `estoque_atual()`, `alertas_ativos()`, `lotes_por_vencimento()`, `encerrar_aplicacao()` e `aplicar_inventario()` foram escritas antes de existir multiempresa e nunca ganharam esse filtro — ficaram "invisíveis" enquanto só existia uma empresa, e vazaram dado assim que a segunda foi criada (algumas do lado de leitura, outras permitindo até *escrever* em empresa errada). Corrigido na migration `014`.
+
+**Antes de commitar qualquer função nova (`SECURITY DEFINER` ou trigger) que toque tabela com `organizacao_id`:**
+1. Toda leitura/escrita na tabela tem `organizacao_id = current_org()` (ou equivalente) no `WHERE`?
+2. Se a função recebe um ID (aplicação, inventário, lote) por parâmetro, ela **valida que esse ID pertence à empresa de quem chamou** antes de fazer qualquer coisa com ele?
+3. Testar simulando outra empresa antes de dar como pronto (não basta "funcionou pra mim" — teste com 2 organizações diferentes).
+
 ## Segurança
 
 - Nunca commitar senha, token ou chave em texto plano — nem como "exemplo". Usar placeholder óbvio (`CHANGE_ME_BEFORE_RUNNING`) e instrução no cabeçalho do arquivo.
