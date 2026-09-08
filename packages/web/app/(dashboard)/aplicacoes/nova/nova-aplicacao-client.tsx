@@ -22,11 +22,16 @@ interface Item {
   dose_por_hectare:  string
   qtd_retirada:      string   // sobrescreve o cálculo automático se preenchido
   quantidade_sobrou: string
+  // Unidade em que o usuário está DIGITANDO este item (dose/retirada/sobra
+  // juntos — nunca misturado no mesmo item). Só existe na tela: convertida
+  // pra unidade real do produto (kg) antes de gravar. Nunca vai pro banco.
+  unidade_entrada:   'nativa' | 'ton'
 }
 
 const ITEM_VAZIO: Item = {
   defensivo_id: '', lote_id: '',
   dose_por_hectare: '', qtd_retirada: '', quantidade_sobrou: '0',
+  unidade_entrada: 'nativa',
 }
 
 // Lista de operações (objetivo). Lista fixa nesta fase — evolui para cadastro próprio (Fase 2).
@@ -112,6 +117,27 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
     setItens(prev => prev.map((it, idx) => idx === i ? { ...it, [campo]: valor } : it))
   }
 
+  // Ao trocar a unidade de entrada (kg ↔ ton), converte os números JÁ digitados
+  // — o campo continua representando a mesma quantidade física, só muda o
+  // rótulo/escala. Sem isso, "2" digitado como kg viraria "2" interpretado
+  // como ton ao trocar o botão, multiplicando o valor real por 1000 à revelia.
+  function trocarUnidadeEntrada(i: number, nova: 'nativa' | 'ton') {
+    setItens(prev => prev.map((it, idx) => {
+      if (idx !== i || it.unidade_entrada === nova) return it
+      const fatorAntigo = it.unidade_entrada === 'ton' ? 1000 : 1
+      const fatorNovo   = nova === 'ton' ? 1000 : 1
+      const razao = fatorAntigo / fatorNovo
+      const conv = (v: string) => v === '' ? '' : String(Math.round(parseFloat(v) * razao * 1e6) / 1e6)
+      return {
+        ...it,
+        unidade_entrada: nova,
+        dose_por_hectare: conv(it.dose_por_hectare),
+        qtd_retirada: conv(it.qtd_retirada),
+        quantidade_sobrou: conv(it.quantidade_sobrou),
+      }
+    }))
+  }
+
   function lotesDoDefensivo(defId: string) {
     return lotes.filter(l => l.defensivo_id === defId)
   }
@@ -169,17 +195,20 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
       if (errVinc) throw errVinc
 
       // ── 3. Salva itens — usa qtd_retirada manual ou calcula dose × área ─
+      // fator converte o que foi digitado (kg ou ton) pra unidade real do
+      // produto (kg) ANTES de gravar — o banco nunca vê "ton".
       const itensSalvar = itens.map(it => {
-        const doseNum = parseFloat(it.dose_por_hectare) || 0
+        const fator   = it.unidade_entrada === 'ton' ? 1000 : 1
+        const doseNum = (parseFloat(it.dose_por_hectare) || 0) * fator
         const qtdAuto = doseNum * (areaTotal || 1)
-        const qtdFinal = it.qtd_retirada ? parseFloat(it.qtd_retirada) : qtdAuto
+        const qtdFinal = it.qtd_retirada ? parseFloat(it.qtd_retirada) * fator : qtdAuto
         return {
           aplicacao_id:     aplic!.id,
           defensivo_id:     it.defensivo_id,
           lote_id:          it.lote_id || null,
           dose_por_hectare: doseNum || null,
           quantidade_usada: qtdFinal,
-          quantidade_sobrou: parseFloat(it.quantidade_sobrou) || 0,
+          quantidade_sobrou: (parseFloat(it.quantidade_sobrou) || 0) * fator,
           calda_total_l:    vazao && areaTotal ? parseFloat(vazao) * areaTotal : null,
         }
       })
@@ -382,8 +411,12 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
           {itens.map((it, i) => {
             const def      = defensivos.find(d => d.id === it.defensivo_id)
             const un       = def?.unidade ?? 'L'
-            const doseNum  = parseFloat(it.dose_por_hectare) || 0
-            const esperado = doseNum * areaTotal
+            const podeTon  = un === 'kg'
+            const fator    = podeTon && it.unidade_entrada === 'ton' ? 1000 : 1
+            const unEntrada = fator === 1000 ? 'ton' : un
+            const doseNum  = (parseFloat(it.dose_por_hectare) || 0) * fator
+            const esperado = doseNum * areaTotal              // sempre na unidade real (kg/L)
+            const esperadoEntrada = fator === 1000 ? esperado / 1000 : esperado
             const loteSel  = lotes.find(l => l.id === it.lote_id)
 
             return (
@@ -406,7 +439,7 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
                       const defId = e.target.value
                       const primLote = lotesDoDefensivo(defId)[0]
                       setItens(prev => prev.map((it2, idx) => idx === i
-                        ? { ...it2, defensivo_id: defId, lote_id: primLote?.id ?? '' }
+                        ? { ...it2, defensivo_id: defId, lote_id: primLote?.id ?? '', unidade_entrada: 'nativa' }
                         : it2
                       ))
                     }}
@@ -446,24 +479,40 @@ export function NovaAplicacaoClient({ fazendas, talhoes, defensivos, lotes, cult
                   </div>
                 )}
 
+                {podeTon && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">Digitar em:</span>
+                    <div className="flex rounded-md border overflow-hidden text-xs">
+                      {(['nativa', 'ton'] as const).map(opcao => (
+                        <button key={opcao} type="button"
+                          className={`px-2.5 py-1 ${it.unidade_entrada === opcao ? 'bg-primary text-white' : 'bg-background hover:bg-muted/50'}`}
+                          onClick={() => trocarUnidadeEntrada(i, opcao)}
+                        >
+                          {opcao === 'ton' ? 'ton' : un}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="text-xs font-medium">Dose/ha ({un}/ha) *</label>
+                    <label className="text-xs font-medium">Dose/ha ({unEntrada}/ha) *</label>
                     <Input type="number" step="0.001" placeholder="0.000" className="mt-1"
                       value={it.dose_por_hectare}
                       onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)} />
                   </div>
                   <div>
-                    <label className="text-xs font-medium">Qtd retirada ({un}) *</label>
+                    <label className="text-xs font-medium">Qtd retirada ({unEntrada}) *</label>
                     <Input
                       type="number" step="0.01" className="mt-1"
-                      placeholder={esperado > 0 ? `≈ ${formatarNumero(esperado, 2)}` : '0.00'}
+                      placeholder={esperadoEntrada > 0 ? `≈ ${formatarNumero(esperadoEntrada, 2)}` : '0.00'}
                       value={it.qtd_retirada}
                       onChange={e => atualizarItem(i, 'qtd_retirada', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium">Sobrou ({un})</label>
+                    <label className="text-xs font-medium">Sobrou ({unEntrada})</label>
                     <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
                       value={it.quantidade_sobrou}
                       onChange={e => atualizarItem(i, 'quantidade_sobrou', e.target.value)} />

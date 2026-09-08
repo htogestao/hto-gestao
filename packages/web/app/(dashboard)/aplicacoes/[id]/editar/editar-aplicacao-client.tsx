@@ -43,6 +43,10 @@ interface Item {
   quantidade_sobrou: string
   dose_por_hectare: string
   calda_total_l: string
+  // Unidade em que o usuário está DIGITANDO este item (dose/retirada/sobra
+  // juntos). Só existe na tela: convertida pra unidade real (kg) antes de
+  // gravar — nunca vai pro banco.
+  unidade_entrada: 'nativa' | 'ton'
 }
 
 interface Aplicacao {
@@ -106,8 +110,9 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
           quantidade_sobrou: String(it.quantidade_sobrou),
           dose_por_hectare:  String(it.dose_por_hectare ?? ''),
           calda_total_l:     String(it.calda_total_l ?? ''),
+          unidade_entrada:   'nativa' as const,
         }))
-      : [{ defensivo_id: '', lote_id: '', quantidade_usada: '', quantidade_sobrou: '0', dose_por_hectare: '', calda_total_l: '' }]
+      : [{ defensivo_id: '', lote_id: '', quantidade_usada: '', quantidade_sobrou: '0', dose_por_hectare: '', calda_total_l: '', unidade_entrada: 'nativa' as const }]
   )
   const [salvando,  setSalvando]  = useState(false)
   const [deletando, setDeletando] = useState(false)
@@ -129,6 +134,27 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
 
   function atualizarItem(i: number, campo: keyof Item, valor: string) {
     setItens(prev => prev.map((it, idx) => idx === i ? { ...it, [campo]: valor } : it))
+  }
+
+  // Ao trocar a unidade de entrada (kg ↔ ton), converte os números JÁ
+  // digitados — o campo continua representando a mesma quantidade física,
+  // só muda o rótulo/escala (evita reinterpretar "2" digitado como kg
+  // virando "2" interpretado como ton, multiplicando por 1000 à revelia).
+  function trocarUnidadeEntrada(i: number, nova: 'nativa' | 'ton') {
+    setItens(prev => prev.map((it, idx) => {
+      if (idx !== i || it.unidade_entrada === nova) return it
+      const fatorAntigo = it.unidade_entrada === 'ton' ? 1000 : 1
+      const fatorNovo   = nova === 'ton' ? 1000 : 1
+      const razao = fatorAntigo / fatorNovo
+      const conv = (v: string) => v === '' ? '' : String(Math.round(parseFloat(v) * razao * 1e6) / 1e6)
+      return {
+        ...it,
+        unidade_entrada: nova,
+        dose_por_hectare: conv(it.dose_por_hectare),
+        quantidade_usada: conv(it.quantidade_usada),
+        quantidade_sobrou: conv(it.quantidade_sobrou),
+      }
+    }))
   }
 
   function lotesDoDefensivo(defId: string) {
@@ -210,15 +236,20 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
 
       if (errDel) throw errDel
 
-      const itensSalvar = itens.map(it => ({
-        aplicacao_id: aplicacao.id,
-        defensivo_id: it.defensivo_id,
-        lote_id: it.lote_id || null,
-        quantidade_usada: parseFloat(it.quantidade_usada),
-        quantidade_sobrou: parseFloat(it.quantidade_sobrou) || 0,
-        dose_por_hectare: it.dose_por_hectare ? parseFloat(it.dose_por_hectare) : null,
-        calda_total_l: it.calda_total_l ? parseFloat(it.calda_total_l) : null,
-      }))
+      // fator converte o que foi digitado (kg ou ton) pra unidade real do
+      // produto (kg) ANTES de gravar — o banco nunca vê "ton".
+      const itensSalvar = itens.map(it => {
+        const fator = it.unidade_entrada === 'ton' ? 1000 : 1
+        return {
+          aplicacao_id: aplicacao.id,
+          defensivo_id: it.defensivo_id,
+          lote_id: it.lote_id || null,
+          quantidade_usada: parseFloat(it.quantidade_usada) * fator,
+          quantidade_sobrou: (parseFloat(it.quantidade_sobrou) || 0) * fator,
+          dose_por_hectare: it.dose_por_hectare ? parseFloat(it.dose_por_hectare) * fator : null,
+          calda_total_l: it.calda_total_l ? parseFloat(it.calda_total_l) : null,
+        }
+      })
 
       const { error: errItens } = await supabase.from('aplicacao_itens').insert(itensSalvar)
       if (errItens) throw errItens
@@ -490,13 +521,19 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">Defensivos Utilizados</CardTitle>
             <Button size="sm" variant="outline"
-              onClick={() => setItens(prev => [...prev, { defensivo_id: '', lote_id: '', quantidade_usada: '', quantidade_sobrou: '0', dose_por_hectare: '', calda_total_l: '' }])}>
+              onClick={() => setItens(prev => [...prev, { defensivo_id: '', lote_id: '', quantidade_usada: '', quantidade_sobrou: '0', dose_por_hectare: '', calda_total_l: '', unidade_entrada: 'nativa' }])}>
               <Plus className="h-4 w-4 mr-1" />Adicionar
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {itens.map((it, i) => (
+          {itens.map((it, i) => {
+            const def       = defensivos.find(d => d.id === it.defensivo_id)
+            const un        = def?.unidade ?? 'L'
+            const podeTon   = un === 'kg'
+            const unEntrada = podeTon && it.unidade_entrada === 'ton' ? 'ton' : un
+
+            return (
             <div key={i} className="space-y-2 border rounded-md p-3 relative">
               {itens.length > 1 && (
                 <button
@@ -537,19 +574,35 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
                 </div>
               )}
 
+              {podeTon && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Digitar em:</span>
+                  <div className="flex rounded-md border overflow-hidden text-xs">
+                    {(['nativa', 'ton'] as const).map(opcao => (
+                      <button key={opcao} type="button"
+                        className={`px-2.5 py-1 ${it.unidade_entrada === opcao ? 'bg-primary text-white' : 'bg-background hover:bg-muted/50'}`}
+                        onClick={() => trocarUnidadeEntrada(i, opcao)}
+                      >
+                        {opcao === 'ton' ? 'ton' : un}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-medium">Dose/ha</label>
+                  <label className="text-xs font-medium">Dose/ha ({unEntrada}/ha)</label>
                   <Input type="number" step="0.001" placeholder="0.000" className="mt-1"
                     value={it.dose_por_hectare} onChange={e => atualizarItem(i, 'dose_por_hectare', e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium">Qtd Retirada *</label>
+                  <label className="text-xs font-medium">Qtd Retirada ({unEntrada}) *</label>
                   <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
                     value={it.quantidade_usada} onChange={e => atualizarItem(i, 'quantidade_usada', e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium">Qtd Sobrou</label>
+                  <label className="text-xs font-medium">Qtd Sobrou ({unEntrada})</label>
                   <Input type="number" step="0.01" placeholder="0.00" className="mt-1"
                     value={it.quantidade_sobrou} onChange={e => atualizarItem(i, 'quantidade_sobrou', e.target.value)} />
                 </div>
@@ -560,7 +613,8 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
                 </div>
               </div>
             </div>
-          ))}
+            )
+          })}
         </CardContent>
       </Card>
 

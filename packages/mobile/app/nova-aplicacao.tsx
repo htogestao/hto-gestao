@@ -66,6 +66,10 @@ export default function NovaAplicacaoScreen() {
   const [lotes, setLotes]                     = useState<LoteDisponivel[]>([])
   const [loteSel, setLoteSel]                 = useState<LoteDisponivel | null>(null)
   const [doseInput, setDoseInput]             = useState('')
+  // Unidade em que o usuário está digitando a dose deste defensivo (só
+  // aparece quando o produto é 'kg'). Nunca vai pro banco — convertida
+  // pra kg antes de entrar em `itens` (ver adicionarItem).
+  const [unidadeEntradaModal, setUnidadeEntradaModal] = useState<'nativa' | 'ton'>('nativa')
 
   const [salvando, setSalvando] = useState(false)
 
@@ -130,20 +134,39 @@ export default function NovaAplicacaoScreen() {
     setLotes([])
     setLoteSel(null)
     setDoseInput('')
+    setUnidadeEntradaModal('nativa')
     loadDefensivos()
     setModalDefensivo(true)
   }
 
   function selecionarDefensivo(d: Defensivo) {
     setDefSel(d)
+    setUnidadeEntradaModal('nativa')
     loadLotesDefensivo(d.id)
+  }
+
+  // Fator de conversão do que está digitado pra unidade real do produto (kg).
+  function fatorEntrada(): number {
+    return defSel?.unidade === 'kg' && unidadeEntradaModal === 'ton' ? 1000 : 1
+  }
+
+  // Troca kg ↔ ton convertendo o número já digitado, pra não reinterpretar
+  // "2" digitado como kg virando "2" interpretado como ton à revelia.
+  function trocarUnidadeEntradaModal(nova: 'nativa' | 'ton') {
+    if (nova === unidadeEntradaModal) return
+    const fatorAntigo = unidadeEntradaModal === 'ton' ? 1000 : 1
+    const fatorNovo   = nova === 'ton' ? 1000 : 1
+    const razao = fatorAntigo / fatorNovo
+    const dose = parseFloat(doseInput.replace(',', '.'))
+    setUnidadeEntradaModal(nova)
+    if (!isNaN(dose)) setDoseInput(String(Math.round(dose * razao * 1e6) / 1e6))
   }
 
   function calcularQtd(): number {
     const dose = parseFloat(doseInput.replace(',', '.'))
     const area = parseFloat(areaHa.replace(',', '.'))
     if (isNaN(dose) || isNaN(area)) return 0
-    return parseFloat((dose * area).toFixed(3))
+    return parseFloat((dose * fatorEntrada() * area).toFixed(3))
   }
 
   function adicionarItem() {
@@ -170,13 +193,15 @@ export default function NovaAplicacaoScreen() {
       Alert.alert('Defensivo já adicionado', 'Este defensivo com este lote já foi adicionado.')
       return
     }
+    // dose_por_hectare grava sempre na unidade real do produto (kg) —
+    // "ton" nunca sai da tela, já foi convertido aqui.
     setItens(prev => [...prev, {
       defensivo_id: defSel.id,
       defensivo_nome: defSel.nome_comercial,
       unidade: defSel.unidade,
       lote_id: loteSel.id,
       lote_fab: loteSel.lote_fabricante,
-      dose_por_hectare: doseInput,
+      dose_por_hectare: String(dose * fatorEntrada()),
       quantidade_calculada: qtd,
     }])
     setModalDefensivo(false)
@@ -531,8 +556,33 @@ export default function NovaAplicacaoScreen() {
                 </TouchableOpacity>
               ))}
 
+              {/* Unidade de entrada (só pra produtos em kg) */}
+              {defSel.unidade === 'kg' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, marginBottom: 4 }}>
+                  <Text style={styles.label}>Digitar em:</Text>
+                  <View style={{ flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb', overflow: 'hidden' }}>
+                    {(['nativa', 'ton'] as const).map(opcao => (
+                      <TouchableOpacity
+                        key={opcao}
+                        onPress={() => trocarUnidadeEntradaModal(opcao)}
+                        style={{
+                          paddingVertical: 6, paddingHorizontal: 14,
+                          backgroundColor: unidadeEntradaModal === opcao ? '#16a34a' : '#fff',
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: unidadeEntradaModal === opcao ? '#fff' : '#374151' }}>
+                          {opcao === 'ton' ? 'ton' : 'kg'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
               {/* Dose */}
-              <Text style={[styles.label, { marginTop: 16 }]}>Dose por hectare ({defSel.unidade}/ha)</Text>
+              <Text style={[styles.label, { marginTop: defSel.unidade === 'kg' ? 0 : 16 }]}>
+                Dose por hectare ({unidadeEntradaModal === 'ton' ? 'ton' : defSel.unidade}/ha)
+              </Text>
               <TextInput
                 style={styles.input}
                 value={doseInput}
