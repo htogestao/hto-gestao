@@ -309,18 +309,44 @@ export function ImportarClient() {
           qtdOk = 0
         }
 
+        // Contagem física substitui o lote de estoque inicial já existente
+        // (mesmo defensivo + mesma origem) em vez de somar/duplicar a cada reimportação.
+        const OBS_INICIAL = 'Estoque inicial — importado da planilha física'
         if (qtdOk > 0) {
-          await supabase.from('lotes').insert({
-            defensivo_id: defId, quantidade_comprada: qtdOk, quantidade_atual: qtdOk,
-            observacoes: 'Estoque inicial — importado da planilha física',
-          })
+          const { data: loteInicial } = await supabase
+            .from('lotes').select('id')
+            .eq('defensivo_id', defId).eq('observacoes', OBS_INICIAL)
+            .maybeSingle()
+
+          if (loteInicial) {
+            await supabase.from('lotes').update({
+              quantidade_comprada: qtdOk, quantidade_atual: qtdOk,
+            }).eq('id', loteInicial.id)
+          } else {
+            await supabase.from('lotes').insert({
+              defensivo_id: defId, quantidade_comprada: qtdOk, quantidade_atual: qtdOk,
+              observacoes: OBS_INICIAL,
+            })
+          }
         }
         if (qtdVencida > 0) {
-          await supabase.from('lotes').insert({
-            defensivo_id: defId, quantidade_comprada: qtdVencida, quantidade_atual: qtdVencida,
-            data_vencimento: '2020-01-01',
-            observacoes: `VENCIDO — ${obsRaw}`,
-          })
+          const { data: loteVencido } = await supabase
+            .from('lotes').select('id')
+            .eq('defensivo_id', defId).like('observacoes', 'VENCIDO —%')
+            .maybeSingle()
+
+          if (loteVencido) {
+            await supabase.from('lotes').update({
+              quantidade_comprada: qtdVencida, quantidade_atual: qtdVencida,
+              observacoes: `VENCIDO — ${obsRaw}`,
+            }).eq('id', loteVencido.id)
+          } else {
+            await supabase.from('lotes').insert({
+              defensivo_id: defId, quantidade_comprada: qtdVencida, quantidade_atual: qtdVencida,
+              data_vencimento: '2020-01-01',
+              observacoes: `VENCIDO — ${obsRaw}`,
+            })
+          }
         }
       }
     }
