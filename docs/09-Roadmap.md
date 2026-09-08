@@ -110,7 +110,7 @@ sequenceDiagram
 
 | # | Dívida | Severidade | Detalhe |
 |---|---|---|---|
-| 1 | Migrations pararam no `004` | 🔴 Alta | ~20 mudanças posteriores vivem só em SQL avulso + banco; não reproduzível pelo repo |
+| 1 | Migrations pararam no `004` | 🟡 Parcial | Migrations `005`-`013` já formalizam boa parte do SQL avulso (2026-09-08) + `CONTRIBUTING.md` documenta o processo daqui pra frente. Falta confirmar se sobra algum `fix_*.sql` avulso mencionado em `08-Segurança.md`/`02-Banco-de-Dados.md` (ex.: `fix_lider_fazendas_talhoes.sql`, `fix_defensivos_editar_excluir.sql`) — não encontrados no repo, prováveis candidatos a migration futura |
 | 2 | Gatilho de estoque não versionado | 🔴 Alta | Regra mais crítica só no Desktop; evoluiu em 4 arquivos |
 | 3 | Sem testes automatizados | 🔴 Alta | Nenhuma cobertura; refatorar é arriscado |
 | 4 | Type-check/lint desligados no build | 🔴 Alta | `ignoreBuildErrors`; há erros de tipo pré-existentes (ex.: `Talhao`) |
@@ -180,6 +180,19 @@ sequenceDiagram
 - [x] Investigar **causa raiz** do bug de estoque subestimado (86 lotes zerados, carga de 08/06/2026) — `git log` descartou o código versionado (nenhum commit tocou `importarDefensivos()` entre 31/05 e o incidente); origem = script SQL avulso não versionado. Ajuste retroativo de +6.023 un lançado como `ajuste` no razão (`supabase/ajuste_retroativo_86_lotes_jun2026.sql`), proporcional por lote, observação documentando que é estimativa pendente de confirmação física.
 - [x] Import de estoque de **defensivos** (`importarDefensivos`) corrigido: reimportar agora **substitui** o lote "Estoque inicial"/"VENCIDO" existente por produto, em vez de duplicar.
 - [ ] Import de **fazendas/talhões** via Edge Function `import-inventario` — mesmo padrão de duplicação não verificado ainda (fora do escopo desta rodada, que era só defensivos/lotes)
+
+### 2.1 Incidente de segurança — senha exposta (resolvido 2026-09-08)
+- [x] `supabase/seed.sql` tinha senha em texto plano (`auth.users` inserido direto) commitada desde o primeiro commit, em repositório **público** — achado durante o levantamento de SQL solto.
+- [x] 3 usuários fake removidos de `auth.users` em produção (sem dado dependente — auditado: 0 perfis órfãos, 0 referências residuais em nenhuma coluna `uuid` do schema `public`).
+- [x] Histórico do git reescrito via BFG Repo-Cleaner (`git filter-repo` indisponível no ambiente) — senha eliminada de todos os commits e mensagens; force-push aplicado. **Ressalva:** GitHub pode manter o commit antigo acessível por hash direto por um tempo (GC não é instantâneo) — mitigação real é rotação de credencial, não a reescrita em si.
+- [x] `seed.sql` recriado com placeholder `CHANGE_ME_BEFORE_RUNNING` em vez de senha literal.
+- ⚠️ **Lembrete permanente:** se `Agro@2025!` foi reaproveitada em qualquer conta real, trocar manualmente — impossível verificar isso remotamente.
+
+### 3. SQL solto versionado + processo (concluído 2026-09-08)
+- [x] `013_operacao_aplicacoes.sql` formaliza `aplicacoes.operacao` (já em produção, `IF NOT EXISTS`, testada sem erro)
+- [x] Rascunhos redundantes removidos (`add_horimetro_aplicacoes.sql`, `sprint1_views_v1_v4.sql`, `add_operacao_aplicacoes.sql` — conteúdo já capturado em `005`, `007`, `013`)
+- [x] `CONTRIBUTING.md` criado — regra: todo SQL de schema vira migration commitada antes de rodar em produção; scripts de dado de cliente ficam em `supabase/` com cabeçalho "já rodou, não reexecutar"
+- [x] `supabase/config.toml` e `supabase/.gitignore` versionados
 
 ### 3. Adubo como classe de defensivo (kg/ha) — sem feature nova
 - [ ] Cadastrar calcário, gesso, ureia, KCl (e afins) na tela **Defensivos** existente — sem tela separada "Adubos"
