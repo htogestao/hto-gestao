@@ -200,11 +200,11 @@ sequenceDiagram
 - [x] `CONTRIBUTING.md` criado — regra: todo SQL de schema vira migration commitada antes de rodar em produção; scripts de dado de cliente ficam em `supabase/` com cabeçalho "já rodou, não reexecutar"
 - [x] `supabase/config.toml` e `supabase/.gitignore` versionados
 
-### 3. Adubo como classe de defensivo (kg/ha) — sem feature nova
-- [ ] Cadastrar calcário, gesso, ureia, KCl (e afins) na tela **Defensivos** existente — sem tela separada "Adubos"
-- [ ] Verificar se dose no schema/tela é numérico livre com unidade configurável ou tem "L/ha" fixo (rótulo/validação) — se fixo, adicionar seletor de unidade (kg/ha vs L/ha) por lançamento
-- [ ] Definir classe de calcário/gesso (corretivos de solo, não fertilizante em sentido estrito) dentro do CHECK atual de `defensivos.classe`
-- [ ] Custo por hectare: **nada novo a construir** — RPC `indicadores_custo` + views V1-V4 (rodando em "Custo por Talhão"/"Executivo" desde 24/07) já cobrem; adubo entra automático assim que virar `defensivo` com `lote`
+### 5. Adubo como classe de defensivo (kg/ha) — concluído 2026-09-08
+- [x] Dose/retirada/sobra já eram numérico livre com unidade dinâmica por produto (`def.unidade`) em toda a base — web, mobile e custo (views V1-V4). Zero mudança de schema necessária nesse ponto.
+- [x] Classe `corretivo_solo` criada (migration `015`) — separa calcário/gesso de fertilizante de verdade (ureia, KCl) nos relatórios.
+- [x] Seletor kg/ton por item em Nova Aplicação, Editar Aplicação (web) e Nova Aplicação (mobile) — "ton" só existe na tela, convertido pra kg antes de gravar. Trocar o toggle converte o número já digitado (não reinterpreta). Testado de verdade: INSERT simulado (1 ton/ha × 2 ha) decrementou o lote de 5000kg pra 3000kg via o trigger real de baixa de estoque, sem misturar grandezas.
+- [x] Custo por hectare: nada novo construído, como previsto — RPC `indicadores_custo` + views V1-V4 já cobrem; adubo entra automático assim que virar `defensivo` com `lote`.
 
 ### 4. Débitos de segurança/técnicos (depois — não bloqueiam os itens acima)
 - [ ] Ligar `inventario_fisico`/`inventario_itens` à UI (RPC `aplicar_inventario` já existe e funciona)
