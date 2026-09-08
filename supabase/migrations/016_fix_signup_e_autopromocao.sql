@@ -69,10 +69,15 @@ end;
 $function$;
 
 -- C2 ─────────────────────────────────────────────────────────────
+-- SECURITY INVOKER de propósito: dentro de uma função SECURITY DEFINER,
+-- current_user vira o dono (postgres) e a checagem abaixo não veria mais
+-- o papel `authenticated` do PostgREST. Como invoker, current_user é quem
+-- fez o UPDATE. A função só lê auth.uid() e current_user_role(), que já
+-- são acessíveis ao papel authenticated.
 create or replace function public.fn_profiles_guard()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $function$
 declare
