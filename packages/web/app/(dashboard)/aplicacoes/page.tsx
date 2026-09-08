@@ -8,6 +8,9 @@ export default async function AplicacoesPage() {
   const { data: profile } = await supabase.from('profiles').select('role')
     .eq('id', (await supabase.auth.getUser()).data.user!.id).single()
 
+  // Líder (field) não lê a tabela lotes (tem preço): usa a view sem preço (migration 018)
+  const lotesFrom = profile?.role === 'field' ? 'lotes_field_view' : 'lotes'
+
   const [{ data: aplicacoes }, { data: culturas }] = await Promise.all([
     supabase.from('aplicacoes')
       .select(`
@@ -25,7 +28,7 @@ export default async function AplicacoesPage() {
         itens:aplicacao_itens(
           id, quantidade_usada, quantidade_sobrou, dose_por_hectare, calda_total_l,
           defensivo:defensivos(id, nome_comercial, unidade),
-          lote:lotes(id, numero_nf, data_vencimento)
+          lote:${lotesFrom}(id, numero_nf, data_vencimento)
         )
       `)
       .order('data', { ascending: false })

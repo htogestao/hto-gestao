@@ -47,7 +47,8 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
   const supabase = createClient()
   const router   = useRouter()
   const isAdmin  = role === 'admin'
-  const podeExcluir = role === 'admin' // só admin apaga; RLS (aplicacoes_delete) é admin-only
+  // Não existe mais exclusão física: cancelar_aplicacao() estorna o estoque e marca status 'cancelada'
+  const podeCancelar = role === 'admin' || role === 'viewer'
 
   const [aplicacoes,    setAplicacoes]  = useState(inicial)
   const [busca,         setBusca]       = useState('')
@@ -79,12 +80,13 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
     setExp(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
-  async function excluir(id: string) {
-    if (!confirm('Excluir esta aplicação? Esta ação não pode ser desfeita.')) return
+  async function cancelar(id: string) {
+    if (!confirm('Cancelar esta aplicação? O produto retirado volta ao estoque e a aplicação fica marcada como cancelada (não sai do histórico).')) return
     setDeletando(id)
-    await supabase.from('aplicacoes').delete().eq('id', id)
-    setAplicacoes(prev => prev.filter(a => a.id !== id))
+    const { error } = await supabase.rpc('cancelar_aplicacao', { p_id: id, p_motivo: null })
     setDeletando(null)
+    if (error) { alert('Não foi possível cancelar: ' + error.message); return }
+    setAplicacoes(prev => prev.map(a => a.id === id ? { ...a, status: 'cancelada' } : a))
   }
 
   return (
@@ -118,14 +120,14 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
           </select>
         )}
         <div className="flex gap-2">
-          {['todos','em_andamento','encerrada'].map(s => (
+          {['todos','em_andamento','encerrada','cancelada'].map(s => (
             <Button
               key={s}
               variant={filtroStatus === s ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFiltro(s)}
             >
-              {s === 'todos' ? 'Todas' : s === 'em_andamento' ? 'Em Andamento' : 'Encerradas'}
+              {s === 'todos' ? 'Todas' : s === 'em_andamento' ? 'Em Andamento' : s === 'encerrada' ? 'Encerradas' : 'Canceladas'}
             </Button>
           ))}
         </div>
@@ -142,7 +144,8 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
           return (
             <Card key={a.id} className={cn(
               'overflow-hidden',
-              a.status === 'em_andamento' && 'border-blue-200 bg-blue-50/30'
+              a.status === 'em_andamento' && 'border-blue-200 bg-blue-50/30',
+              a.status === 'cancelada' && 'opacity-60 border-dashed'
             )}>
               <div
                 className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/20 transition-colors"
@@ -167,6 +170,8 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
                     )}
                     {a.status === 'em_andamento'
                       ? <Badge variant="info">Em Andamento</Badge>
+                      : a.status === 'cancelada'
+                      ? <Badge variant="danger">Cancelada</Badge>
                       : <Badge variant="success">Encerrada</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -185,16 +190,19 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
                       {formatarNumero(a.itens.reduce((s,i) => s + i.quantidade_usada, 0), 1)} unid. total
                     </p>
                   </div>
-                  <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
-                    <Button variant="ghost" size="sm" className="shrink-0">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  </Link>
-                  {podeExcluir && (
+                  {a.status !== 'cancelada' && (
+                    <Link href={`/aplicacoes/${a.id}/editar`} onClick={e => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" className="shrink-0">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </Link>
+                  )}
+                  {podeCancelar && a.status !== 'cancelada' && (
                     <Button
                       variant="ghost" size="sm"
+                      title="Cancelar aplicação (estorna o estoque)"
                       disabled={deletandoId === a.id}
-                      onClick={e => { e.stopPropagation(); excluir(a.id) }}
+                      onClick={e => { e.stopPropagation(); cancelar(a.id) }}
                       className="shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

@@ -32,9 +32,12 @@ export function UsuariosClient({ usuarios, currentUserId }: { usuarios: Usuario[
 
   async function toggleAtivo(u: Usuario) {
     if (u.id === currentUserId) return
+    if (u.ativo && !confirm(`Desativar ${u.nome}? As sessões abertas dele serão encerradas na hora.`)) return
     setSaving(u.id)
-    await supabase.from('profiles').update({ ativo: !u.ativo }).eq('id', u.id)
+    // RPC de admin: muda o status E derruba as sessões do usuário (migration 017)
+    const { error } = await supabase.rpc('definir_usuario_ativo', { p_id: u.id, p_ativo: !u.ativo })
     setSaving(null)
+    if (error) { alert('Não foi possível alterar o status: ' + error.message); return }
     router.refresh()
   }
 

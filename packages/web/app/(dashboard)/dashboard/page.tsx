@@ -25,6 +25,7 @@ export default async function DashboardPage() {
     supabase.rpc('alertas_ativos'),
     supabase.from('aplicacoes')
       .select('id, status, data')
+      .neq('status', 'cancelada')
       .gte('data', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]),
     supabase.from('aplicacoes')
       .select(`
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
           defensivo:defensivos(nome_comercial, reentrada_horas, carencia_dias)
         )
       `)
+      .neq('status', 'cancelada')
       .gte('data', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
       .order('data', { ascending: false }),
   ])

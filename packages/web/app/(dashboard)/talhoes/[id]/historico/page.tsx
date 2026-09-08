@@ -25,6 +25,7 @@ export default async function HistoricoTalhaoPage({ params }: { params: { id: st
         )
       `)
       .eq('talhao_id', params.id)
+      .neq('status', 'cancelada')
       .order('data', { ascending: false }),
   ])
 

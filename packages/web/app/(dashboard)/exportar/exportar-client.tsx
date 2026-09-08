@@ -167,6 +167,7 @@ export function ExportarClient({ role }: { role: string }) {
               lote:lotes(numero_nf)
             )
           `)
+          .neq('status', 'cancelada')
           .gte('data', dataInicio).lte('data', dataFim).order('data', { ascending: false })
 
         const rows = aplic?.flatMap(a => {

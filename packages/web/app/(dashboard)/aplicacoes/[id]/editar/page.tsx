@@ -9,6 +9,10 @@ export default async function EditarAplicacaoPage({ params }: { params: { id: st
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Líder (field) lê lotes pela view sem preço (migration 018)
+  const { data: perfil } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const lotesFrom = perfil?.role === 'field' ? 'lotes_field_view' : 'lotes'
+
   const [
     { data: aplicacao },
     { data: fazendas },
@@ -37,7 +41,7 @@ export default async function EditarAplicacaoPage({ params }: { params: { id: st
     supabase.from('fazendas').select('id, nome').order('nome'),
     supabase.from('talhoes').select('id, nome, fazenda_id, area_ha').order('nome'),
     supabase.from('defensivos').select('id, nome_comercial, unidade').order('nome_comercial'),
-    supabase.from('lotes').select('id, numero_nf, defensivo_id, quantidade_atual').order('data_vencimento'),
+    supabase.from(lotesFrom).select('id, numero_nf, defensivo_id, quantidade_atual').order('data_vencimento'),
     supabase.from('culturas').select('id, nome').eq('ativo', true).order('nome'),
     supabase.from('operadores').select('id, nome').eq('ativo', true).order('nome'),
     supabase.from('frotas').select('id, identificador, categoria').eq('ativo', true).order('identificador'),

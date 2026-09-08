@@ -63,6 +63,6 @@ export type TipoMovimentacao =
   | 'ajuste'
   | 'descarte'
 
-export type StatusAplicacao = 'em_andamento' | 'encerrada'
+export type StatusAplicacao = 'em_andamento' | 'encerrada' | 'cancelada'
 
 export type StatusVencimento = 'ok' | 'proximo_30' | 'proximo_60' | 'proximo_90' | 'vencido'

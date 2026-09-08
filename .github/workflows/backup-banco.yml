@@ -1,0 +1,84 @@
+# Backup diário do banco de produção do HtoGestão + teste de restauração.
+# Como funciona: ver docs/10-Backup-e-Restauracao.md
+#  1. dump lógico via Management API (secret SUPABASE_ACCESS_TOKEN)
+#  2. restaura num Postgres 17 limpo (container) — restauração DE VERDADE, toda vez
+#  3. confere contagem e checksum de cada tabela contra a origem
+#  4. criptografa (AES-256, secret BACKUP_PASSPHRASE) e guarda como artifact por 90 dias
+# Se qualquer passo falhar, o run fica vermelho e o GitHub avisa o dono do repositório por e-mail.
+name: Backup do banco
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC = 03:00 em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-banco
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGTZ: UTC
+      RESTORE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 1. Dump lógico da produção
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node backup/dump.mjs out
+
+      - name: 2. Restaurar num Postgres limpo
+        run: |
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -q -f backup/restore-prelude.sql
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -q -f out/01_schema.sql
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -q -f out/02_data.sql
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -q -f out/02b_auth.sql
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -q -f out/03_post.sql
+
+      - name: 3. Conferir restauração (contagem + checksum por tabela)
+        run: |
+          psql "$RESTORE_URL" -At -F, -v ON_ERROR_STOP=1 -f out/04_verify.sql > restored.csv
+          node backup/compare.mjs out/manifest.json restored.csv
+
+      - name: 4. Criptografar
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE" || { echo "secret BACKUP_PASSPHRASE ausente"; exit 1; }
+          NAME="hto-gestao-backup-$(date -u +%Y-%m-%d_%H%M)"
+          tar czf "$NAME.tar.gz" -C out .
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$NAME.tar.gz" -out "$NAME.tar.gz.enc" -pass env:BACKUP_PASSPHRASE
+          rm -rf out "$NAME.tar.gz" restored.csv
+          ls -la "$NAME.tar.gz.enc"
+          echo "ARQ=$NAME" >> "$GITHUB_ENV"
+
+      - name: 5. Guardar (90 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARQ }}
+          path: ${{ env.ARQ }}.tar.gz.enc
+          retention-days: 90
+          if-no-files-found: error

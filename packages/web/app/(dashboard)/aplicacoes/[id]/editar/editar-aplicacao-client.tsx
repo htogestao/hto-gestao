@@ -167,17 +167,21 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
     itens.some(it => it.defensivo_id === d.id)
   )
 
-  async function deletar() {
+  const cancelada = aplicacao.status === 'cancelada'
+
+  // Cancelamento lógico (migration 017): a RPC estorna o estoque e marca 'cancelada'.
+  // Não há mais DELETE físico — o histórico e o razão ficam íntegros.
+  async function cancelarAplicacao() {
     setDeletando(true)
-    try {
-      await supabase.from('aplicacao_itens').delete().eq('aplicacao_id', aplicacao.id)
-      await supabase.from('aplicacoes').delete().eq('id', aplicacao.id)
-      router.push('/aplicacoes')
-      router.refresh()
-    } catch (e: any) {
-      setErro(e.message ?? 'Erro ao deletar.')
+    const { error } = await supabase.rpc('cancelar_aplicacao', { p_id: aplicacao.id, p_motivo: null })
+    if (error) {
+      setErro('Não foi possível cancelar: ' + error.message)
       setDeletando(false)
+      setConfirmar(false)
+      return
     }
+    router.push('/aplicacoes')
+    router.refresh()
   }
 
   async function salvar() {
@@ -272,16 +276,24 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
           </button>
           <h1 className="text-xl font-bold">Editar Aplicação</h1>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-red-500 border-red-200 hover:bg-red-50"
-          onClick={() => setConfirmar(true)}
-        >
-          <Trash2 className="h-4 w-4 mr-1" />
-          Deletar
-        </Button>
+        {!cancelada && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-red-500 border-red-200 hover:bg-red-50"
+            onClick={() => setConfirmar(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Cancelar aplicação
+          </Button>
+        )}
       </div>
+
+      {cancelada && (
+        <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
+          Esta aplicação foi cancelada e não pode ser alterada. O produto retirado já voltou ao estoque.
+        </div>
+      )}
 
       {/* Modal de confirmação */}
       {confirmar && (
@@ -289,19 +301,19 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
             <div className="flex items-center gap-3 text-red-600">
               <AlertTriangle className="h-6 w-6 shrink-0" />
-              <p className="font-semibold">Deletar esta aplicação?</p>
+              <p className="font-semibold">Cancelar esta aplicação?</p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Essa ação não pode ser desfeita. Todos os defensivos registrados nessa aplicação serão removidos.
+              O produto retirado volta ao estoque e a aplicação fica marcada como cancelada. Ela continua no histórico e não sai dos relatórios de rastreabilidade.
             </p>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setConfirmar(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setConfirmar(false)}>Voltar</Button>
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white"
-                onClick={deletar}
+                onClick={cancelarAplicacao}
                 disabled={deletando}
               >
-                {deletando ? 'Deletando...' : 'Sim, deletar'}
+                {deletando ? 'Cancelando...' : 'Sim, cancelar'}
               </Button>
             </div>
           </div>
@@ -618,8 +630,8 @@ export function EditarAplicacaoClient({ aplicacao, fazendas, talhoes, defensivos
         </CardContent>
       </Card>
 
-      <Button className="w-full" size="lg" onClick={salvar} disabled={salvando}>
-        {salvando ? 'Salvando...' : 'Salvar Alterações'}
+      <Button className="w-full" size="lg" onClick={salvar} disabled={salvando || cancelada}>
+        {cancelada ? 'Aplicação cancelada' : salvando ? 'Salvando...' : 'Salvar Alterações'}
       </Button>
     </div>
   )

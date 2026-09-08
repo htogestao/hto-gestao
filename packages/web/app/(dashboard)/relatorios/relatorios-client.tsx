@@ -62,6 +62,7 @@ export function RelatoriosClient({ role, fazendas, culturas }: { role: string; f
               quantidade_usada, quantidade_sobrou, dose_por_hectare,
               defensivo:defensivos(nome_comercial, unidade)
             )`)
+          .neq('status', 'cancelada')
           .gte('data', dataIni).lte('data', dataFim).order('data', { ascending: false })
 
         if (fazenda !== 'todas') q = q.eq('fazenda_id', fazenda)
@@ -91,6 +92,7 @@ export function RelatoriosClient({ role, fazendas, culturas }: { role: string; f
               defensivo:defensivos(nome_comercial, unidade, classe, carencia_dias)
             )
           `)
+          .neq('status', 'cancelada')
           .gte('data', dataIni).lte('data', dataFim).order('data', { ascending: true })
         if (fazenda !== 'todas') q = q.eq('fazenda_id', fazenda)
         if (cultura !== 'todas') q = q.eq('cultura_id', cultura)
