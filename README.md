@@ -42,7 +42,7 @@ No dashboard Supabase → **SQL Editor**, execute em ordem:
 O seed cria os auth.users automaticamente se executado. Caso precise criar manualmente:
 - Dashboard → Authentication → Users → **Add user**
 - Use os e-mails: `analista@agro.com`, `patrao@agro.com`, `campo@agro.com`
-- Senha padrão: `SENHA_REMOVIDA_DO_HISTORICO` (altere após o primeiro login)
+- Senha: defina uma via variável de ambiente `SEED_PASSWORD` ao rodar o seed (altere após o primeiro login)
 
 ---
 
@@ -169,4 +169,4 @@ supabase functions deploy import-inventario
 - **19 fazendas** reais: Fazenda Recanto Primavera, Fazenda Guanabara, Fazenda Baracoa, Fazenda Mironga...
 - **40 defensivos** da planilha física real: APROACH POWER (1340 L), COMPASS (332 L), METRIBUZIM (424 L), ZAPP (180 L), MIRATO (194 L)...
 - **Lotes** com estoques reais, incluindo lote vencido TOPIK 240 EC (12 L, vencido 2023) para teste de alertas
-- **3 usuários de teste**: analista@agro.com / patrao@agro.com / campo@agro.com (senha: `SENHA_REMOVIDA_DO_HISTORICO`)
+- **3 usuários de teste**: analista@agro.com / patrao@agro.com / campo@agro.com (senha definida via `SEED_PASSWORD`, ver seção 1.3)
