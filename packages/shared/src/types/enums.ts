@@ -10,6 +10,7 @@ export type ClasseDefensivo =
   | 'fertilizante'
   | 'fertilizante_foliar'
   | 'adubo_foliar'
+  | 'corretivo_solo'
   | 'nematicida'
   | 'inoculante'
   | 'maturador'
@@ -29,6 +30,7 @@ export const CLASSE_LABELS: Record<ClasseDefensivo, string> = {
   fertilizante: 'Fertilizante',
   fertilizante_foliar: 'Fertilizante Foliar',
   adubo_foliar: 'Adubo Foliar',
+  corretivo_solo: 'Corretivo de Solo',
   nematicida: 'Nematicida',
   inoculante: 'Inoculante',
   maturador: 'Maturador',

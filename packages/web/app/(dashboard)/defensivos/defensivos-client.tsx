@@ -29,6 +29,7 @@ const CLASSE_COR: Record<string, string> = {
   inseticida: 'bg-orange-100 text-orange-800', adjuvante: 'bg-blue-100 text-blue-800',
   fertilizante: 'bg-green-100 text-green-800', fertilizante_foliar: 'bg-teal-100 text-teal-800',
   nematicida: 'bg-pink-100 text-pink-800', adubo_foliar: 'bg-lime-100 text-lime-800',
+  corretivo_solo: 'bg-amber-100 text-amber-800',
 }
 
 const FORMULACOES = ['SC','EC','WG','OD','SL','WP','CS','EW','FS','GR','ME','SE','SP','TB','UL','Outro']
