@@ -1,10 +1,17 @@
-const CACHE_NAME = 'htogestao-v1'
+const CACHE_NAME = 'htogestao-v2'
 
 const STATIC_ASSETS = [
   '/',
   '/dashboard',
   '/offline',
 ]
+
+// Cache-first só vale pra asset estático do build (hash no nome, imutável).
+// Páginas/dados dinâmicos (ex.: navegação interna do Next para /aplicacoes,
+// /estoque etc.) precisam sempre ir à rede — nunca ficar presos no cache.
+function ehAssetEstatico(url) {
+  return url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/')
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -40,6 +47,10 @@ self.addEventListener('fetch', (event) => {
     )
     return
   }
+
+  // Tudo que não é navegação nem asset estático (ex.: fetch de RSC do Next
+  // ao trocar de rota pelo menu) passa direto pra rede — não intercepta.
+  if (!ehAssetEstatico(new URL(event.request.url))) return
 
   // Para assets estáticos: cache-first
   event.respondWith(
