@@ -47,7 +47,7 @@ const started = new Date()
 const tables = await q(`
   select c.relname, c.relrowsecurity,
     (select json_agg(json_build_object('name', a.attname, 'type', format_type(a.atttypid, a.atttypmod),
-        'notnull', a.attnotnull, 'default', pg_get_expr(d.adbin, d.adrelid)) order by a.attnum)
+        'notnull', a.attnotnull, 'default', pg_get_expr(d.adbin, d.adrelid), 'generated', a.attgenerated = 's') order by a.attnum)
      from pg_attribute a left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
      where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped) as cols
   from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' order by 1`)
@@ -93,7 +93,8 @@ let s = `-- HtoGestão · schema · gerado ${started.toISOString()} · ${version
 s += `set check_function_bodies = off;\nset client_min_messages = warning;\n\n`
 for (const t of tables) {
   s += `create table public.${ident(t.relname)} (\n`
-  s += t.cols.map(c => `  ${ident(c.name)} ${c.type}${c.notnull ? ' not null' : ''}${c.default ? ' default ' + c.default : ''}`).join(',\n')
+  // coluna gerada (ex.: inventario_itens.diferenca) vem de pg_attrdef como se fosse default
+  s += t.cols.map(c => `  ${ident(c.name)} ${c.type}${c.notnull ? ' not null' : ''}${c.generated ? ' generated always as (' + c.default + ') stored' : c.default ? ' default ' + c.default : ''}`).join(',\n')
   s += `\n);\n`
 }
 s += `\n-- chaves primárias, unique e check (FKs ficam no 03_post.sql, depois dos dados)\n`
@@ -124,6 +125,8 @@ const manifest = { gerado_em: started.toISOString(), projeto: REF, versao_pg: ve
 let verify = ''
 for (const t of tables) {
   const order = (pk[t.relname] || [t.cols[0].name]).map(ident).join(', ')
+  // lista explícita de colunas: colunas geradas não aceitam INSERT
+  const colList = t.cols.filter(c => !c.generated).map(c => ident(c.name)).join(', ')
   const stats = (await q(`select count(*)::int as n, md5(coalesce(string_agg(md5(t::text), '' order by t::text), '')) as h from public.${ident(t.relname)} t`))[0]
   manifest.tabelas[t.relname] = { linhas: stats.n, checksum: stats.h }
   verify += `${verify ? 'union all\n' : ''}select '${t.relname}' as tabela, count(*)::int as n, md5(coalesce(string_agg(md5(t::text), '' order by t::text), '')) as h from public.${ident(t.relname)} t\n`
@@ -132,7 +135,7 @@ for (const t of tables) {
     const rows = (await q(`select coalesce(json_agg(t), '[]'::json) as j from (select * from public.${ident(t.relname)} order by ${order} limit ${CHUNK} offset ${off}) t`))[0].j
     const json = JSON.stringify(rows)
     if (json.includes(DELIM)) throw new Error(`dado contém o delimitador ${DELIM} em ${t.relname}`)
-    d += `insert into public.${ident(t.relname)} select * from json_populate_recordset(null::public.${ident(t.relname)}, ${DELIM}${json}${DELIM}::json);\n`
+    d += `insert into public.${ident(t.relname)} (${colList}) select ${colList} from json_populate_recordset(null::public.${ident(t.relname)}, ${DELIM}${json}${DELIM}::json);\n`
   }
   d += '\n'
   process.stdout.write(`  ${t.relname.padEnd(26)} ${String(stats.n).padStart(6)} linhas\n`)
