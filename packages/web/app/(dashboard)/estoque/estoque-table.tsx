@@ -225,7 +225,7 @@ export function EstoqueTable({ estoque: inicial, lotes: lotesIniciais, role }: {
                               {formatarNumero(l.quantidade_atual, 1)} {l.defensivo?.unidade}
                             </td>
                             <td className="p-2 text-right text-muted-foreground font-mono">
-                              {formatarNumero(l.quantidade_comprada, 1)}
+                              Comprado: {formatarNumero(l.quantidade_comprada, 1)}
                             </td>
                             <td className="p-2 text-center">
                               {l.data_vencimento ? (
