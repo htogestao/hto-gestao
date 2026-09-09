@@ -156,11 +156,11 @@ export function ExportarClient({ role }: { role: string }) {
         XLSX.writeFile(wb, `fazendas_talhoes_${hoje}.xlsx`)
 
       } else if (tipo === 'aplicacoes') {
-        const { data: aplic } = await supabase.from('aplicacoes')
+        const { data: aplic, error } = await supabase.from('aplicacoes')
           .select(`
             data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas, observacoes,
             fazenda:fazendas(nome), talhao:talhoes(nome),
-            responsavel:profiles(nome),
+            responsavel:profiles!aplicacoes_responsavel_id_fkey(nome),
             itens:aplicacao_itens(
               quantidade_usada, quantidade_sobrou, dose_por_hectare, calda_total_l,
               defensivo:defensivos(nome_comercial),
@@ -169,6 +169,7 @@ export function ExportarClient({ role }: { role: string }) {
           `)
           .neq('status', 'cancelada')
           .gte('data', dataInicio).lte('data', dataFim).order('data', { ascending: false })
+        if (error) throw error
 
         const rows = aplic?.flatMap(a => {
           const itens = (a.itens as Array<{
@@ -255,6 +256,8 @@ export function ExportarClient({ role }: { role: string }) {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Compras')
         XLSX.writeFile(wb, `compras_${dataInicio}_${dataFim}.xlsx`)
       }
+    } catch (e: any) {
+      alert('Erro ao exportar: ' + (e?.message ?? e))
     } finally {
       setCarregando(null)
     }

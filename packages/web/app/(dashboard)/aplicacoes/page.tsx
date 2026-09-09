@@ -11,7 +11,7 @@ export default async function AplicacoesPage() {
   // Líder (field) não lê a tabela lotes (tem preço): usa a view sem preço (migration 018)
   const lotesFrom = profile?.role === 'field' ? 'lotes_field_view' : 'lotes'
 
-  const [{ data: aplicacoes }, { data: culturas }] = await Promise.all([
+  const [{ data: aplicacoes, error: erroAplicacoes }, { data: culturas }] = await Promise.all([
     supabase.from('aplicacoes')
       .select(`
         id, data, status, area_aplicada_ha, praga_alvo, condicoes_climaticas,
@@ -24,7 +24,7 @@ export default async function AplicacoesPage() {
         talhoes_vinculados:aplicacao_talhoes(
           talhao:talhoes(id, nome, area_ha)
         ),
-        responsavel:profiles(id, nome),
+        responsavel:profiles!aplicacoes_responsavel_id_fkey(id, nome),
         itens:aplicacao_itens(
           id, quantidade_usada, quantidade_sobrou, dose_por_hectare, calda_total_l,
           defensivo:defensivos(id, nome_comercial, unidade),
@@ -37,5 +37,14 @@ export default async function AplicacoesPage() {
     supabase.from('culturas').select('id, nome').eq('ativo', true).order('nome'),
   ])
 
-  return <AplicacoesClient aplicacoes={(aplicacoes ?? []) as any} role={profile?.role ?? 'viewer'} culturas={culturas ?? []} />
+  if (erroAplicacoes) console.error('Erro ao buscar aplicações:', erroAplicacoes)
+
+  return (
+    <AplicacoesClient
+      aplicacoes={(aplicacoes ?? []) as any}
+      role={profile?.role ?? 'viewer'}
+      culturas={culturas ?? []}
+      erro={erroAplicacoes?.message ?? null}
+    />
+  )
 }

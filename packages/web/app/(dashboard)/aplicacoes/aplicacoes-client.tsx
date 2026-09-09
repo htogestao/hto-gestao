@@ -43,7 +43,7 @@ const CULTURA_CORES: Record<string, string> = {
   'Mandioca': 'bg-purple-100 text-purple-700',
 }
 
-export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { aplicacoes: Aplicacao[]; role: string; culturas: CulturaInfo[] }) {
+export function AplicacoesClient({ aplicacoes: inicial, role, culturas, erro }: { aplicacoes: Aplicacao[]; role: string; culturas: CulturaInfo[]; erro?: string | null }) {
   const supabase = createClient()
   const router   = useRouter()
   const isAdmin  = role === 'admin'
@@ -91,6 +91,11 @@ export function AplicacoesClient({ aplicacoes: inicial, role, culturas }: { apli
 
   return (
     <div className="p-6 space-y-4">
+      {erro && (
+        <div className="rounded-md border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-3">
+          Não foi possível carregar as aplicações agora ({erro}). Atualize a página; se continuar, avise o suporte.
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Aplicações</h1>

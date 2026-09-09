@@ -54,7 +54,7 @@ function isPraga(classe: string)   { return ['inseticida','acaricida','nematicid
 function isDoenca(classe: string)  { return classe === 'fungicida' }
 function isDaninha(classe: string) { return classe === 'herbicida' }
 
-export function HistoricoTalhaoClient({ talhao, aplicacoes }: { talhao: Talhao; aplicacoes: Aplicacao[] }) {
+export function HistoricoTalhaoClient({ talhao, aplicacoes, erro }: { talhao: Talhao; aplicacoes: Aplicacao[]; erro?: string | null }) {
   const router = useRouter()
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set())
   const [filtro, setFiltro]         = useState<Filtro>('todos')
@@ -136,6 +136,12 @@ export function HistoricoTalhaoClient({ talhao, aplicacoes }: { talhao: Talhao; 
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto pb-10">
+
+      {erro && (
+        <div className="rounded-md border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-3">
+          Não foi possível carregar o histórico de aplicações agora ({erro}). Atualize a página; se continuar, avise o suporte.
+        </div>
+      )}
 
       {/* Cabeçalho */}
       <div className="flex items-center gap-3">

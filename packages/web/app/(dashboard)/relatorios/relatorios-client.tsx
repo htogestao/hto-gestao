@@ -57,7 +57,7 @@ export function RelatoriosClient({ role, fazendas, culturas }: { role: string; f
           .select(`data, status, area_aplicada_ha, praga_alvo,
             fazenda:fazendas(nome), talhao:talhoes(nome),
             cultura:culturas(nome),
-            responsavel:profiles(nome),
+            responsavel:profiles!aplicacoes_responsavel_id_fkey(nome),
             itens:aplicacao_itens(
               quantidade_usada, quantidade_sobrou, dose_por_hectare,
               defensivo:defensivos(nome_comercial, unidade)
@@ -67,7 +67,8 @@ export function RelatoriosClient({ role, fazendas, culturas }: { role: string; f
 
         if (fazenda !== 'todas') q = q.eq('fazenda_id', fazenda)
         if (cultura !== 'todas') q = q.eq('cultura_id', cultura)
-        const { data: aplic } = await q
+        const { data: aplic, error } = await q
+        if (error) throw error
         imprimirAplicacoes(aplic ?? [], dataIni, dataFim)
 
       } else if (tipo === 'vencimentos') {
@@ -86,7 +87,7 @@ export function RelatoriosClient({ role, fazendas, culturas }: { role: string; f
             cultura:culturas(nome),
             talhao:talhoes(nome, area_ha),
             talhoes_vinculados:aplicacao_talhoes(talhao:talhoes(nome, area_ha)),
-            responsavel:profiles(nome),
+            responsavel:profiles!aplicacoes_responsavel_id_fkey(nome),
             itens:aplicacao_itens(
               quantidade_usada, quantidade_sobrou, dose_por_hectare,
               defensivo:defensivos(nome_comercial, unidade, classe, carencia_dias)
@@ -96,7 +97,8 @@ export function RelatoriosClient({ role, fazendas, culturas }: { role: string; f
           .gte('data', dataIni).lte('data', dataFim).order('data', { ascending: true })
         if (fazenda !== 'todas') q = q.eq('fazenda_id', fazenda)
         if (cultura !== 'todas') q = q.eq('cultura_id', cultura)
-        const { data: aplic } = await q
+        const { data: aplic, error } = await q
+        if (error) throw error
         imprimirAplicacoesFazenda((aplic ?? []) as any[], dataIni, dataFim)
 
       } else if (tipo === 'compras') {
