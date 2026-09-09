@@ -25,6 +25,14 @@ Se um run falhar, o GitHub manda e-mail para o dono da conta. Um run vermelho é
 
 Se o token da Supabase for trocado, atualizar o secret no GitHub. Se a passphrase for trocada, os backups antigos continuam abrindo só com a antiga.
 
+**Histórico de rotação da passphrase**
+
+| Data | Motivo | Efeito |
+|---|---|---|
+| 2026-09-09 01:17 UTC | primeira passphrase exposta em texto plano fora do ambiente seguro | secret rotacionado; o único backup cifrado com a antiga (run #2, 01:13) foi apagado; a partir do run #3 (01:18) tudo abre só com a nova |
+
+Quando rotacionar: gerar 36 bytes aleatórios em base64 (`openssl rand -base64 36`), atualizar o secret `BACKUP_PASSPHRASE`, rodar o workflow à mão, baixar o artifact e abrir com a nova (o passo "Descriptografar" acima). Backups anteriores ficam ilegíveis se a antiga for perdida; com retenção de 90 dias isso é aceitável, mas apague-os se a antiga foi exposta.
+
 ## Descriptografar um backup (Windows, Git Bash)
 
 ```bash
